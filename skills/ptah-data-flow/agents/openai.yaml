@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ptah Data Flow"
+  short_description: "Run the local Ptah data workflow"
+  default_prompt: "Use $ptah-data-flow to identify the current stage, establish the working area, repair the working dataset, and keep driving toward a Ptah-ready publish until you either reach a trustworthy curated artifact or hit a clearly stated blocker such as a missing API key, permission, or publish target."
