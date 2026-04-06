@@ -27,6 +27,9 @@ This skill is for running local OODA loops around that workflow. It should help 
 - Maintain a local progress log so the workflow can survive interrupted sessions. Read it at the start if it exists, and update it after each meaningful stage output.
 - Stay self-contained. Default to the skill bundle, the user's explicit working area, and the workflow artifacts created during the current run. The working area may be a file, a folder, or a small set of clearly named paths. Do not inspect unrelated workspace files, repo precedent, or local pipelines for guidance. Only expand scope if the user explicitly names the file or folder, or asks for integration with existing local code.
 - Establish dataset scope before running batch logic. If the working area contains multiple datasets, first identify the active dataset, dataset-specific source of truth, and dataset-specific output paths before adapting or running any script.
+- When source recovery depends on live web pages or APIs, make fetches retry-safe. One transient network failure should not collapse the whole run.
+- If the source is website-backed and some rows come back sparse or blocked, record those rows explicitly and support a targeted refresh pass later instead of forcing a full rebuild.
+- After a network-context change such as VPN, proxy, or auth improvement, prefer a targeted re-fetch of sparse rows before declaring the source permanently weak.
 - Do not stop at a local draft if the next bounded transform is obvious and all required inputs, credentials, and tools are already available. Continue autonomously.
 - If the next step is blocked by a missing external credential, permission, or target identifier, say that explicitly and ask for it directly instead of acting finished.
 - When you stop, state the completion status plainly: local draft, curated local artifact, publish-ready artifact, or published result.
@@ -106,11 +109,14 @@ Steps:
 - confirm row counts early
 - preserve raw files
 - remove exact duplicates before semantic cleanup
+- if a source has per-row detail pages, keep the list-page extraction separate from the detail-page enrichment pass
+- persist the row identifier or source URL needed to re-fetch a single row later
 
 Second look:
 
 - verify that recovered rows actually represent entities and not artifacts of parsing
 - verify counts against user expectation or source pagination
+- verify which sparse rows are true source gaps versus fetch failures or blocked pages
 
 ### Stage 2: canonicalization and diagnosis
 
@@ -139,6 +145,8 @@ Required behavior:
 - ask for clarification only after inspecting the data
 - if the user has a taxonomy idea, evaluate it against the real data and Ptah constraints
 - if the user does not know, use the default approach from the taxonomy reference
+- if the source taxonomy is multi-tagged, choose one final `Subcategory` per row and retain the raw tag set only in helper columns or context fields
+- for mixed speaker-company style datasets, use `Name` for the user-facing display identity the user asked for, and move relationship detail such as affiliation into `Description` or helper columns
 
 Second look:
 
@@ -155,6 +163,8 @@ Steps:
 - enrich missing source material when rows are too sparse for good curation
 - rewrite display fields for consistency where needed
 - keep generated fields rerunnable and reviewable
+- if `Description` is being generated deterministically, optimize for concise display copy that avoids repeating data already shown in `Name`
+- for website-backed datasets, prefer source URL, profile image, role line, affiliation line, and first strong bio sentence as the deterministic enrichment spine
 - check required external credentials before starting model-backed enrich or rewrite work
 - if `Description` or `AI Context` has a defined rewrite policy, use it; bundled rewrite runners and templates count as a defined policy
 - do not substitute a deterministic fact string or source-note concatenation into final `AI Context` just to fill the column
@@ -175,6 +185,7 @@ Required behavior:
 - read [references/airtable-boundary.md](references/airtable-boundary.md)
 - validate the 12-field downstream contract
 - inspect the actual Airtable schema before assuming types or order
+- expect practical schema drift from the nominal 12-field contract; common differences include numeric `Id`, attachment-based `Logo`, extra boolean publish flags, and text fields that are narrower than the ideal local draft
 - treat Airtable schema audit as its own blocker check: exact field names, hidden BOM/whitespace pollution, missing required fields, and any truly blocking boundary field types such as `Updated At`
 - when a blocker is found and the helper can fix it, use the bundled Airtable schema mutation helper, then inspect again
 - treat boundary failures as publish problems, not as reasons to edit the base blindly
@@ -191,6 +202,7 @@ Required behavior:
 - do not assume the base can be created over API in the normal flow; default to the user creating or choosing their Airtable base first unless they explicitly have an API-supported base-creation path
 - if Ptah connection setup is in scope, inspect Airtable first, resolve the real table and view names, test the Ptah connection, and only then save it
 - if Airtable URL plus PAT are already available, do not ask the user to explain Airtable ids or manually provide table/view names; resolve them from inspect
+- if the target table already contains sample or legacy rows, treat append-versus-replace as an explicit decision unless the user already authorized wiping them
 
 Second look:
 
@@ -226,9 +238,9 @@ Use these as semantic guides, not rigid formulas:
 - `Subcategory`: one normalized class under that entity type
   - not a raw multi-tag dump
 - `Name`: primary display identity
-- `Website`: primary public URL
+- `Website`: primary URL for the published row; when the user wants profile-based navigation, this can be a source profile page rather than a company homepage
 - `Logo`: public logo URL if available
-- `Description`: short display copy for the card surface
+- `Description`: short display copy for the card surface; do not waste it repeating the exact identity already visible in `Name`
 - `Year Founded`: publish-friendly founded date value, shaped to the boundary contract
 - `Email`: public contact email
 - `Tech Capabilities`: optional capability field if there is a clean and defensible source
