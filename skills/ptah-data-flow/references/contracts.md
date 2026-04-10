@@ -47,7 +47,7 @@ The current publish target expects these fields in this order:
 Rules:
 
 - Treat columns 1-11 as the Ptah-safe core.
-- `Updated At` should be an Airtable `Last modified time` field.
+- `Updated At` must be an Airtable `Last modified time` field.
 - `AI Context` is a normal text field.
 - Publish should create or repair the table shape for the user rather than forcing manual Airtable prep.
 - A 12-field CSV can be a valid local publish-shaped artifact before Airtable exists, but that does not automatically mean every enrichment-managed field is final.

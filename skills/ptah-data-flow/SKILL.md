@@ -25,6 +25,7 @@ This skill is for running local OODA loops around that workflow. It should help 
 - Do not be myopic. Before deciding on taxonomy, rewrites, or cleanup rules, inspect the whole dataset or the relevant distribution.
 - Always do a second look after a meaningful stage output. Do not wait for the user to explicitly ask for review.
 - Maintain a local progress log so the workflow can survive interrupted sessions. Read it at the start if it exists, and update it after each meaningful stage output.
+- When the workflow needs tokens or API keys, store them in a local `.env` file under the working area when possible, and make sure that file is excluded from git. Do not keep retyping secrets inline in commands if a local `.env` can carry them.
 - Stay self-contained. Default to the skill bundle, the user's explicit working area, and the workflow artifacts created during the current run. The working area may be a file, a folder, or a small set of clearly named paths. Do not inspect unrelated workspace files, repo precedent, or local pipelines for guidance. Only expand scope if the user explicitly names the file or folder, or asks for integration with existing local code.
 - Establish dataset scope before running batch logic. If the working area contains multiple datasets, first identify the active dataset, dataset-specific source of truth, and dataset-specific output paths before adapting or running any script.
 - When source recovery depends on live web pages or APIs, make fetches retry-safe. One transient network failure should not collapse the whole run.
@@ -147,6 +148,7 @@ Required behavior:
 - if the user does not know, use the default approach from the taxonomy reference
 - if the source taxonomy is multi-tagged, choose one final `Subcategory` per row and retain the raw tag set only in helper columns or context fields
 - for mixed speaker-company style datasets, use `Name` for the user-facing display identity the user asked for, and move relationship detail such as affiliation into `Description` or helper columns
+- for startup datasets, prefer market verticals or industries for `Subcategory`; do not fall back to alphabetical navigation buckets unless the user explicitly wants navigational groupings instead of semantic taxonomy
 
 Second look:
 
@@ -186,15 +188,17 @@ Required behavior:
 - validate the 12-field downstream contract
 - inspect the actual Airtable schema before assuming types or order
 - expect practical schema drift from the nominal 12-field contract; common differences include numeric `Id`, attachment-based `Logo`, extra boolean publish flags, and text fields that are narrower than the ideal local draft
-- treat Airtable schema audit as its own blocker check: exact field names, hidden BOM/whitespace pollution, missing required fields, and any truly blocking boundary field types such as `Updated At`
+- treat Airtable schema audit as its own blocker check: exact field names, hidden BOM/whitespace pollution, missing required fields, and required boundary field types
+- treat `Updated At` as a hard requirement: it must be an Airtable `lastModifiedTime` field before the boundary is considered clean
 - when a blocker is found and the helper can fix it, use the bundled Airtable schema mutation helper, then inspect again
 - treat boundary failures as publish problems, not as reasons to edit the base blindly
-- do not stop on non-blocking Airtable cleanup unless the user explicitly asks for schema cleanup
+- do not stop on non-blocking Airtable cleanup unless the user explicitly asks for schema cleanup, but do stop on any `Updated At` mismatch until it is repaired or explicitly escalated as a manual blocker
 - prefer finishing the intended curation pass before the first Airtable upload unless the user explicitly wants a phased publish
 - do not describe a local export as fully Ptah-ready if `Description` or `AI Context` is still blank, raw-source-only, or explicitly pending
 - if the user only asks for Airtable as a destination, default to GUI CSV import first
 - only switch into Airtable remote-boundary mode when the progress log already contains a remote Airtable target or the user provides an Airtable URL
 - if Airtable remote-boundary mode is in scope, ask early for the Airtable PAT
+- once a PAT or other API secret is provided, move it into a local `.env` file in the working area when practical, prefer environment-backed scripts over inline secret-bearing commands, and keep the progress log at `present` or `missing` rather than pasting the secret value
 - treat the progress log as the ground truth for whether a remote Airtable or Ptah connection boundary already exists
 - if the progress log already contains an Airtable URL, base, table, view, PAT status, Ptah admin origin, or Ptah connection id, continue from that recorded remote state rather than relying only on the user's latest wording
 - if the user provides an Airtable URL, treat that as an explicit remote-boundary workflow and ask for the Airtable PAT immediately
@@ -237,6 +241,7 @@ Use these as semantic guides, not rigid formulas:
   - examples: `Startups & Companies`, `Investors & VCs`
 - `Subcategory`: one normalized class under that entity type
   - not a raw multi-tag dump
+  - for startups, usually a defensible market vertical or industry
 - `Name`: primary display identity
 - `Website`: primary URL for the published row; when the user wants profile-based navigation, this can be a source profile page rather than a company homepage
 - `Logo`: public logo URL if available

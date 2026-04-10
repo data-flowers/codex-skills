@@ -124,6 +124,21 @@ Use:
 
 and derive those from the full dataset plus text context.
 
+### Pattern: startups with weak or missing industry fields
+
+This is common in event sites and sponsor grids.
+
+Use:
+
+- website title
+- meta description
+- first strong homepage paragraph
+- product language in the name or profile copy
+
+to infer one market vertical or industry per startup.
+
+Do not use alphabetical buckets such as `A-F` or `M-R` as the final `Subcategory` unless the user explicitly wants navigation groups rather than semantic taxonomy.
+
 ## What good looks like
 
 A good taxonomy is:

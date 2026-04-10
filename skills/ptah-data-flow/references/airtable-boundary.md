@@ -104,6 +104,7 @@ When a schema problem is found:
 - repair it directly if the bundled mutation helper can do it
 - otherwise tell the user exactly what still needs manual repair
 - do not stop on non-blocking Airtable cleanup unless the user explicitly asks for schema cleanup
+- `Updated At` is not non-blocking cleanup; if it is not `lastModifiedTime`, the boundary is still blocked
 
 This makes the workflow more generic than special-casing one broken header.
 
@@ -131,6 +132,13 @@ The current direct repairs are:
 - create missing contract fields when the helper has a deterministic create path
 
 The helper does not repair Airtable field types. If a non-blocking type cleanup would require the Airtable UI, do not treat it as a blocker by default.
+
+Exception:
+
+- `Updated At` must be a real Airtable `lastModifiedTime` field
+- if it is not, treat that as a blocking schema defect
+- repair it directly when the API path is available
+- otherwise tell the user exactly what manual Airtable change is still required before calling the boundary clean
 
 If something still cannot be repaired by the helper and it is actually blocking the downstream flow, call it out plainly as remaining manual repair.
 
@@ -190,6 +198,8 @@ If the user provides an Airtable URL:
 - ask for the Airtable PAT immediately
 - ask for the full Airtable PAT secret, not just the visible token id shown later in the Airtable UI
 - tell the user to copy and save the full PAT when they create it, because Airtable may only show the short token id after the first view
+- once the PAT is received, prefer storing it in a working-area `.env` file that is excluded from git and run API helpers through environment variables rather than repeating the token inline in commands
+- do not paste raw PAT values into the progress log or routine handoff notes; record only whether the token is present and where the local `.env` lives if that path matters
 - do not continue with remote inspection or upload until the PAT is available
 - once the PAT is available, inspect and audit the remote schema before upload or Ptah connection work
 - if the audit shows a contract mismatch, use the bundled mutation helper instead of asking the user to rename fields by hand
@@ -365,7 +375,7 @@ Examples of field semantics:
 
 - `Category`: may be `singleLineText` or `singleSelect`; check the real schema
 - `Subcategory`: usually a text-like field in this workflow, but confirm
-- `Updated At`: should be an Airtable `lastModifiedTime` field, not a normal text or date field
+- `Updated At`: must be an Airtable `lastModifiedTime` field, not a normal text or date field
 - `AI Context`: normal long text is acceptable
 
 ## Boundary workflow
