@@ -56,6 +56,19 @@ The target fields are:
 
 Do not assume names or types. Inspect the real base.
 
+## Local publish artifact vs upload artifact
+
+A clean local 12-field Ptah CSV is the canonical publish shape, but it is not always the safest API upload file.
+
+After inspecting the Airtable schema, create a separate upload artifact when needed. This artifact may:
+
+- omit fields that are blank and incompatible with the remote type, such as empty attachment fields
+- omit fields that Airtable manages, such as `Updated At`
+- omit or defer fields whose source values do not match the remote field type, such as a free-text capability list going into `multipleSelects`
+- include only a stable merge key plus one enriched field for partial updates, such as `Id` and `AI Context`
+
+Record both artifacts separately in the progress log. Do not treat an upload-safe subset as a replacement for the canonical local Ptah artifact.
+
 ## What to inspect first
 
 Use:
@@ -140,6 +153,13 @@ Exception:
 - repair it directly when the API path is available
 - otherwise tell the user exactly what manual Airtable change is still required before calling the boundary clean
 
+Practical Airtable limitation:
+
+- Airtable's Metadata API may reject creating a `lastModifiedTime` field with `UNSUPPORTED_FIELD_TYPE_FOR_CREATE`
+- Airtable may also reject direct type conversion from `dateTime` to `lastModifiedTime`
+- if you try a rename-plus-create repair, make the operation rollback-safe and verify the final field names afterward
+- if API repair is rejected, tell the user to repair `Updated At` in the Airtable UI and rerun the schema audit afterward
+
 If something still cannot be repaired by the helper and it is actually blocking the downstream flow, call it out plainly as remaining manual repair.
 
 For Ptah connection work, use this inspect step before building the connection payload.
@@ -214,6 +234,15 @@ If the user does not have a base yet, the default path is:
 
 - ask them to create or choose the Airtable base first
 - then continue with schema inspection and upload
+
+## Post-upload verification
+
+After an API upload or partial update:
+
+- inspect the table or view again to verify record count
+- read back a small sample of the intended fields, such as `Id`, `Name`, and `AI Context`
+- for enrichment updates, count created vs updated records and confirm the update did not create duplicates
+- record the verification in the progress log
 
 ## Share step for Ptah connection
 

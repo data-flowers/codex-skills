@@ -76,6 +76,7 @@ Exit criteria:
 - one structured source dataset exists
 - row count is understood
 - exact duplicates from pagination or export problems are handled
+- if rows were removed, a duplicate report exists or the progress log records source rows, dedupe keys, kept rows, and reasons
 
 ## Stage 2: canonicalization and diagnosis
 
@@ -89,6 +90,7 @@ Exit criteria:
 - source identifiers are preserved
 - entity kind is understood
 - obvious missingness and schema problems are known
+- any semantic or website/title dedupe is explainable with source row numbers and merge policy
 
 ## Stage 3: taxonomy design and assignment
 
@@ -101,6 +103,7 @@ Exit criteria:
 - category model is explicit
 - subcategory model is explicit
 - label distribution has been reviewed and, if needed, revised
+- diagnostics show which entities landed in the largest labels
 
 ## Stage 4: curation and enrichment
 
@@ -126,6 +129,8 @@ Important:
 - if no such path is available yet, leave the field blank or clearly pending rather than fabricating an ad-hoc placeholder just to satisfy the 12-column shape
 - if the intended rewrite or enrich path is clear but blocked only by a missing credential, stop there, mark the blocker clearly, and ask for that credential
 - missing `EXA_API_KEY` is not a hard blocker by default; fall back to ordinary web search and keep provenance unless the user specifically asked for Exa
+- for model-backed `AI Context`, prefer a sample-first loop: run a small batch, inspect the output, validate structure and grounding, then run the full batch
+- when enrichment is added after an initial upload, prefer a partial update artifact keyed by stable `Id` instead of re-sending every field
 
 Exit criteria:
 
@@ -142,10 +147,12 @@ Goal:
 Important:
 
 - a local 12-field export is a valid stopping point when no Airtable base or Ptah connection is in scope
+- distinguish the ideal local Ptah export from the upload artifact that fits the inspected Airtable schema
 - do not call a dataset fully publish-ready if enrichment-managed fields are still pending
 - do not call a dataset fully publish-ready if the export still contains raw-source-only `Description` rows, deterministic placeholder `AI Context`, or other known curation gaps
 - default sequencing is to finish the intended curation pass before the first Airtable upload, unless the user explicitly wants a phased publish
 - if a curate step is still clearly available and not blocked, keep going rather than stopping at a draft boundary
+- after upload, verify both record count and a small field readback for the fields that were intended to change
 
 Exit criteria:
 

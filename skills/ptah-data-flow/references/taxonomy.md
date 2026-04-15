@@ -53,6 +53,7 @@ Before deciding:
 - look at tail labels
 - inspect whether one label dominates too much
 - inspect whether labels are too fragmented
+- inspect membership inside large buckets, not only counts
 
 Do not decide from 5 rows.
 
@@ -90,12 +91,15 @@ Avoid:
 After assigning or proposing labels, review:
 
 - bucket sizes
+- bucket membership for the largest labels
 - overly broad buckets
 - tiny buckets that should merge
 - long labels that can be compressed
 - noisy labels that should normalize
 
 Revise once if needed.
+
+Emit a small taxonomy diagnostics artifact when practical. It should include at least row id, name, final `Category`, final `Subcategory`, and the signal or source value that drove the assignment. Counts alone are not enough when labels are broad.
 
 ## Common patterns
 
@@ -123,6 +127,17 @@ Use:
 - one normalized class for `Subcategory`
 
 and derive those from the full dataset plus text context.
+
+### Pattern: homogeneous directory with topic navigation
+
+Sometimes every row already shares one entity type, such as think tanks, universities, or agencies, and the user explicitly wants meaningful topic navigation.
+
+In that case, you may use:
+
+- `Category = broad topical area`
+- `Subcategory = narrower topical focus`
+
+This is an exception to the default entity-type model. Record the reason in the progress log and verify the taxonomy by reviewing both label counts and the membership of large buckets.
 
 ### Pattern: startups with weak or missing industry fields
 

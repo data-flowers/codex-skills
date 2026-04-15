@@ -53,6 +53,7 @@ Update it after:
 - curated fields are regenerated
 - publish succeeds or fails
 - a blocker or pitfall is discovered
+- a blocker is resolved, so the current stage and next moves no longer describe stale work
 
 ## What to include
 
@@ -106,11 +107,13 @@ This remote block should be treated as the current remote state for later sessio
 - schema surprises
 - taxonomy decisions
 - permission or boundary problems
+- resolved blockers that should be remembered but are no longer current next steps
 
 ### Next moves
 
 - next 1 to 3 bounded actions
 - if the next move is blocked, say exactly what is missing, such as `GEMINI_API_KEY`, `EXA_API_KEY`, Airtable PAT, base id, table id, or user confirmation
+- do not leave resolved blockers here; move their history to pitfalls and findings
 
 ### Open questions
 

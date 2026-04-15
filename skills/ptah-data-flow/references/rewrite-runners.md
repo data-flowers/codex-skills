@@ -54,6 +54,7 @@ Verify:
 - prompt/context logic uses the right grounding fields
 - cache path is dataset-scoped
 - worker count fits the user's machine and API budget
+- the API key is discovered without printing the secret value in terminal output
 
 ## Description runner
 
@@ -88,6 +89,14 @@ Adapt:
 - link columns
 - context columns
 
+For directory datasets, prefer a compact, grounded prompt with stable headings and explicit caveats. Useful validation checks include:
+
+- every row has a non-empty target field
+- headings match the expected order
+- body text does not contain raw URLs
+- source links, if included, are drawn only from allowed source columns
+- generated bodies stay under the chosen word limit
+
 ## Default execution pattern
 
 For most datasets:
@@ -96,7 +105,9 @@ For most datasets:
 2. adapt prompt/context and column mapping
 3. run a small sample first
 4. inspect distribution quality
-5. only then run the full batch
+5. validate fill rate, heading order, URL leakage, source links, and word counts
+6. only then run the full batch
+7. write a partial upload artifact keyed by stable `Id` when pushing only the generated field back to Airtable
 
 The bundled templates already support:
 
