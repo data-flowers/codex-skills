@@ -96,10 +96,24 @@ After assigning or proposing labels, review:
 - tiny buckets that should merge
 - long labels that can be compressed
 - noisy labels that should normalize
+- redundant `Category` / `Subcategory` pairs
 
 Revise once if needed.
 
 Emit a small taxonomy diagnostics artifact when practical. It should include at least row id, name, final `Category`, final `Subcategory`, and the signal or source value that drove the assignment. Counts alone are not enough when labels are broad.
+
+### 8. Check category/subcategory usefulness
+
+`Subcategory` should add information beyond `Category`. Avoid labels that repeat the parent, such as `Climate & Energy / Climate & Energy` or `Commerce & Marketplaces / Retail Marketplaces`.
+
+If a category has only one subcategory, keep that subcategory only when it clarifies a longer or ambiguous parent category. Otherwise prefer using only `Category`, or leave `Subcategory` empty if the downstream surface supports it.
+
+For controlled vocabularies, run a small validation pass after assignment:
+
+- count distinct subcategories
+- confirm no one-row subcategory buckets unless intentionally preserved
+- check token overlap between category and subcategory labels
+- inspect examples from each low-volume bucket
 
 ## Common patterns
 
@@ -135,9 +149,11 @@ Sometimes every row already shares one entity type, such as organizations, insti
 In that case, you may use:
 
 - `Category = broad topical area`
-- `Subcategory = narrower topical focus`
+- `Subcategory = additive narrower focus`
 
 This is an exception to the default entity-type model. Record the reason in the progress log and verify the taxonomy by reviewing both label counts and the membership of large buckets.
+
+Do not use `Subcategory` as a second copy of the category. If there is no useful second dimension, category-only navigation is better than redundant subcategory labels.
 
 ### Pattern: startups with weak or missing industry fields
 
@@ -163,3 +179,5 @@ A good taxonomy is:
 - not overfit to one source
 - not a raw tag dump
 - checked against the full dataset
+- free of redundant category/subcategory wording
+- consolidated enough that navigation buckets contain meaningful groups

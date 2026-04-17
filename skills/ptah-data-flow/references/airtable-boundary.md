@@ -235,6 +235,30 @@ If the user does not have a base yet, the default path is:
 - ask them to create or choose the Airtable base first
 - then continue with schema inspection and upload
 
+
+## Update behavior for existing Airtable tables
+
+Prefer minimal, targeted Airtable changes. When the table already contains records, do not delete and reupload the table by default.
+
+Default order for API updates:
+
+1. build the canonical local artifact
+2. derive an upload-safe subset with only the merge key and changed fields
+3. dry-run schema validation
+4. patch/upsert only those fields
+5. read back count and a small field sample
+
+Full replacement is allowed only when one of these is true:
+
+- the user explicitly asks to replace or discard existing rows
+- stale rows must be removed and there is no reliable delete-by-diff path
+- the table is a disposable staging table
+- record identity does not matter and this is recorded in the progress log
+
+For taxonomy-only updates, preserve Airtable record identity when possible. Patch `Category`, `Subcategory`, and any regenerated text fields against a stable key such as `Id`; do not resend attachment, multiselect, or Airtable-managed fields unless they actually need to change.
+
+If rows must be removed, prefer a targeted delete of only rows absent from the trusted source over deleting every record and reuploading the survivors.
+
 ## Post-upload verification
 
 After an API upload or partial update:

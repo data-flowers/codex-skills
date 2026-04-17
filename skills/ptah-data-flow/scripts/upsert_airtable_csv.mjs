@@ -213,12 +213,16 @@ function prepareFieldPayload(row, headers, fieldMap) {
       fail(`Missing field metadata for CSV header: ${header}`);
     }
 
-    if (field.type === "number") {
-      if (trimmed === "") {
-        fields[header] = null;
+    if (trimmed === "") {
+      if (field.type === "multipleAttachments" || field.type === "multipleSelects") {
+        fields[header] = [];
         continue;
       }
+      fields[header] = null;
+      continue;
+    }
 
+    if (field.type === "number") {
       const numericValue = Number(trimmed);
       if (!Number.isFinite(numericValue)) {
         fail(`Invalid numeric value for field "${header}" in row Name="${row.Name || ""}": ${value}`);
@@ -227,7 +231,21 @@ function prepareFieldPayload(row, headers, fieldMap) {
       continue;
     }
 
-    fields[header] = trimmed === "" ? null : value;
+    if (field.type === "multipleAttachments") {
+      fields[header] = [{ url: trimmed }];
+      continue;
+    }
+
+    if (field.type === "multipleSelects") {
+      fields[header] = trimmed
+        .split(/[;,]/)
+        .map((name) => name.trim())
+        .filter(Boolean)
+        .map((name) => ({ name }));
+      continue;
+    }
+
+    fields[header] = value;
   }
 
   return fields;

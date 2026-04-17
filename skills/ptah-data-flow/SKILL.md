@@ -55,6 +55,7 @@ This skill is for running local OODA loops around that workflow. It should help 
    - [references/rewrite-runners.md](references/rewrite-runners.md) when you need to adapt a Gemini batch rewrite runner into the active dataset working area
    - [references/airtable-boundary.md](references/airtable-boundary.md) when publish, schema, PAT, base, table, view, or connection repair is in play
    - [references/artifacts.md](references/artifacts.md) when you need the allowed working-area model or bundled tool entrypoints
+   - [references/field-notes.md](references/field-notes.md) when a prior project surfaces reusable workflow mistakes, source-of-truth changes, taxonomy redundancy, or Airtable update behavior
    - [references/prompt-starters.md](references/prompt-starters.md) when the user is vague, resuming interrupted work, or needs a clean continuation prompt shape
 7. Do an early credential preflight when the workflow clearly points toward model-backed Stage 4 work:
    - check whether `GEMINI_API_KEY` is already available if curated `Description` or `AI Context` will be needed
