@@ -82,6 +82,28 @@ The AI Context template is designed for:
 - allowed-source-link restriction
 - bounded retry with validation feedback
 
+Default AI Context prompt contract:
+
+```text
+I need max 200 word summary about the following company:
+
+{company} {url} {description}
+
+sections: what; why; who; for whom; in relation to; what's nice great and superb.
+summary needs to be extra compact, dense with info. every extra token hurts.
+output simple structured markdown without the source notes. ready for copy paste.
+add links to sources at the bottom of the answer, out of the markdown doc.
+```
+
+Output rules:
+
+- `AI Context` stores only the simple structured markdown body.
+- Do not include links inside `AI Context`.
+- Do not include source notes inside `AI Context`.
+- Do not repeat information already available in `Name`, `Website`, `Description`, or other explicit fields unless needed for coherence.
+- Treat 200 words as a soft ceiling based on economy, not a hard validation rule; prefer much shorter when the source material supports it.
+- If source links are produced during review, keep them outside the markdown body and do not publish them into `AI Context`.
+
 Adapt:
 
 - prompt wording

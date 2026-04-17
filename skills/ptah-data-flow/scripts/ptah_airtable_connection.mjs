@@ -4,8 +4,8 @@
 //   node ptah_airtable_connection.mjs test --origin http://localhost:3000 --payload ./connection.json
 //   node ptah_airtable_connection.mjs save --origin http://localhost:3000 --payload ./connection.json
 //   node ptah_airtable_connection.mjs save --origin http://localhost:3000 \
-//     --name "Miami Tech VCs" --base-id app... --table-name "VCs" --view "Grid view" \
-//     --last-modified-field "Updated At" --description "Miami investor map"
+//     --name "Example Directory" --base-id app... --table-name "Entities" --view "Grid view" \
+//     --last-modified-field "Updated At" --description "Example entity directory"
 //
 // Notes:
 // - Supported commands: test, save.

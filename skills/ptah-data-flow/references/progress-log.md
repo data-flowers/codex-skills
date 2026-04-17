@@ -134,7 +134,7 @@ This remote block should be treated as the current remote state for later sessio
 - Working dataset: ./data/entities-working.csv
 - Local publish artifact: ./data/entities.ptah.csv
 - Airtable URL: https://airtable.com/app.../tbl.../viw...
-- Remote publish target: Airtable base app... (`Miami Tech`), table tbl... (`Entities`), view viw... (`Grid view`)
+- Remote publish target: Airtable base app... (`Example Base`), table tbl... (`Entities`), view viw... (`Grid view`)
 - Airtable PAT: present
 - Remote schema inspected: yes
 - Remote schema audited: yes

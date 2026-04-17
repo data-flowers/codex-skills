@@ -64,7 +64,7 @@ exa = Exa(os.getenv("EXA_API_KEY"))
 
 webset = exa.websets.create(
     params=CreateWebsetParameters(
-        search={"query": "Miami AI investors", "count": 25},
+        search={"query": "early-stage AI investors", "count": 25},
         enrichments=[
             CreateEnrichmentParameters(
                 description="Find official website",

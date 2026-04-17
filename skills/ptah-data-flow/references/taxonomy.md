@@ -130,7 +130,7 @@ and derive those from the full dataset plus text context.
 
 ### Pattern: homogeneous directory with topic navigation
 
-Sometimes every row already shares one entity type, such as think tanks, universities, or agencies, and the user explicitly wants meaningful topic navigation.
+Sometimes every row already shares one entity type, such as organizations, institutions, or agencies, and the user explicitly wants meaningful topic navigation.
 
 In that case, you may use:
 
