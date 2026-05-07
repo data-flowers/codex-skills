@@ -199,6 +199,49 @@ you have enough to inspect the target and resolve the required Airtable names yo
 
 You also have enough to run the schema audit and apply safe deterministic schema repairs yourself.
 
+## Incremental Airtable maintenance
+
+Use this when the table is already published and the user asks to update one row, one new row, missing `AI Context`, stale descriptions, or another narrow data-quality issue.
+
+Default sequence:
+
+1. read the progress log for the current Airtable URL, ids, PAT status, and source-of-truth paths
+2. re-export the current view from Airtable
+3. identify the smallest target set:
+   - explicit record id
+   - explicit entity name
+   - rows where the target field is blank
+   - rows whose source-field hash changed since the cached generation
+4. generate or repair only those rows
+5. validate locally
+6. PATCH Airtable by record id with only the intended changed field(s)
+7. re-export Airtable and verify the remote values
+
+For single-field updates, the PATCH payload must be narrow:
+
+```json
+{
+  "records": [
+    {
+      "id": "rec...",
+      "fields": {
+        "AI Context": "..."
+      }
+    }
+  ]
+}
+```
+
+Do not send full row payloads for maintenance updates. This is especially important for attachment fields such as `Logo`; omitting `Logo` from a PATCH preserves it, while sending a stale or malformed `Logo` value can damage it.
+
+Preservation checks after maintenance:
+
+- compare untouched fields for every patched record before and after upload when a local pre-patch export exists
+- always check attachment presence/count for `Logo` on touched rows
+- if a URL-like Airtable attachment export changes but the attachment is still present, treat that as likely Airtable URL rotation, not automatically as data loss
+- if an attachment count changes, stop and report the row ids before doing further writes
+- re-run the schema audit if the update touched boundary setup or if the remote behavior looks surprising
+
 ## What to ask for before publish
 
 Priority rule:

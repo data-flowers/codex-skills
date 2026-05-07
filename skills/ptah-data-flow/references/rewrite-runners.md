@@ -140,3 +140,29 @@ The bundled templates already support:
 - incremental flushes
 
 That is usually enough. Do not add more machinery unless the dataset really needs it.
+
+## Incremental maintenance pattern
+
+For post-publish maintenance, adapt the runner to support a narrow target set instead of rerunning the full dataset.
+
+Useful switches or equivalent local behavior:
+
+- `--missing-only`: process only rows where the target field is blank
+- `--record-id rec...`: process one Airtable record id
+- `--name "Entity"`: process a user-named entity after confirming the match is unique
+- `--category Companies`: scope broad maintenance to one entity class
+- `--request-delay N`: respect free-tier model rate limits
+- no `--force` by default: reuse cached output unless source fields changed
+
+Cache key guidance:
+
+- include the row id and a hash of source fields used by the prompt
+- include source fields such as `Name`, `Website`, `Category`, `Subcategory`, `Description`, `Year Founded`, `Tech Capabilities`, `city`, `focus`, and any current target field used as context
+- do not include volatile Airtable attachment URLs or `Updated At` in the rewrite cache key unless the prompt actually depends on them
+
+After generation:
+
+- validate the same constraints used for full batch runs
+- write a local output CSV containing all rows so unchanged rows stay available for review
+- upload only the selected record ids and only the target field being refreshed
+- re-export the remote target and validate the remote values, not just the local output
