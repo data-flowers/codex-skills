@@ -85,6 +85,8 @@ Avoid:
 - copying raw multi-tag strings directly
 - creating dozens or hundreds of brittle final labels
 - using labels that are too long for normal use
+- repeating the category meaning in the subcategory label
+- one-subcategory categories unless the user explicitly wants a flat taxonomy
 
 ### 7. Do a second look
 
@@ -97,6 +99,9 @@ After assigning or proposing labels, review:
 - long labels that can be compressed
 - noisy labels that should normalize
 - redundant `Category` / `Subcategory` pairs
+- category/subcategory complementarity: the subcategory should add a useful distinction inside the category, not restate it
+- category shape: each category should usually have 2-9 subcategories
+- bucket floor: avoid final categories or subcategories with 5 or fewer rows unless the dataset is very small or the user explicitly wants rare classes preserved
 
 Revise once if needed.
 
@@ -114,6 +119,18 @@ For controlled vocabularies, run a small validation pass after assignment:
 - confirm no one-row subcategory buckets unless intentionally preserved
 - check token overlap between category and subcategory labels
 - inspect examples from each low-volume bucket
+
+## Shape constraints
+
+When the user asks for a "balanced" or "meaningful" taxonomy, enforce these checks before publishing:
+
+- Every category has more than one subcategory.
+- No category has more than 9 subcategories.
+- Every final category has more than 5 rows.
+- Every final subcategory has more than 5 rows.
+- Subcategory names complement category names. Good: `Category = STEM & Technical Learning`, `Subcategory = Math & Logic Practice`. Weak: `Category = Math Learning`, `Subcategory = Math Games & Practice`.
+
+If the data cannot satisfy these constraints without absurd labels, merge sparse buckets upward and record the tradeoff in the progress log.
 
 ## Common patterns
 
@@ -178,6 +195,8 @@ A good taxonomy is:
 - stable
 - not overfit to one source
 - not a raw tag dump
+- balanced enough for navigation
+- shaped so subcategories add detail rather than echoing categories
 - checked against the full dataset
 - free of redundant category/subcategory wording
 - consolidated enough that navigation buckets contain meaningful groups

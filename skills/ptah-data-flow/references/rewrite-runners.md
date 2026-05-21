@@ -41,7 +41,7 @@ So the reusable part is the runner pattern:
 - validate output
 - cache
 - shard
-- parallelize conservatively
+- rate-limit conservatively
 - write CSV incrementally
 
 ## Before running a copied template
@@ -53,8 +53,22 @@ Verify:
 - expected columns match the actual dataset
 - prompt/context logic uses the right grounding fields
 - cache path is dataset-scoped
-- worker count fits the user's machine and API budget
+- worker count and request delay fit the Gemini quota before the full run
 - the API key is discovered without printing the secret value in terminal output
+
+## Gemini rate discipline
+
+Do not hammer Gemini and then recover from 429s. Design the batch to succeed on the first full run.
+
+Default posture:
+
+- Run a tiny sample first, usually 3-5 rows.
+- For unknown or free-tier keys, run the full batch with `--workers 1` and `--request-delay-seconds 4.5` or slower.
+- Use higher concurrency only after confirming the key's actual quota and doing the math. Requests per minute roughly equals `workers * 60 / request_delay_seconds`.
+- Keep caching on by default. Do not use `--force` unless intentionally regenerating.
+- Flush every 10-20 rows so an interruption preserves useful output.
+- Treat a 429 as a configuration failure: lower workers, increase delay, and resume from cache. Do not repeatedly restart at the same rate.
+- If sharding across processes, include all shards in the same rate budget. Shards are not a quota bypass.
 
 ## Description runner
 
@@ -128,12 +142,14 @@ For most datasets:
 3. run a small sample first
 4. inspect distribution quality
 5. validate fill rate, heading order, URL leakage, source links, and word counts
-6. only then run the full batch
-7. write a partial upload artifact keyed by stable `Id` when pushing only the generated field back to Airtable
+6. set a quota-safe full-run cadence
+7. only then run the full batch
+8. write a partial upload artifact keyed by stable `Id` when pushing only the generated field back to Airtable
 
 The bundled templates already support:
 
 - `--workers`
+- `--request-delay-seconds`
 - `--shard-count`
 - `--shard-index`
 - `--force`

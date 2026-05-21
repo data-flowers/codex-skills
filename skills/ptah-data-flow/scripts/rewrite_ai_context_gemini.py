@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
+import time
 from pathlib import Path
 
 try:
@@ -148,6 +149,7 @@ def generate_ai_context(
     context_columns: list[str],
     link_columns: list[str],
     max_attempts: int,
+    request_delay_seconds: float,
     timeout_seconds: int,
 ) -> tuple[str, dict[str, object]]:
     context = build_context_from_columns(row, context_columns)
@@ -156,7 +158,7 @@ def generate_ai_context(
     feedback = ""
     last_error = ""
 
-    for _ in range(max_attempts):
+    for attempt in range(max_attempts):
         prompt = prompt_template.format(
             context=context,
             allowed_links=allowed_links_text,
@@ -174,6 +176,8 @@ def generate_ai_context(
             markdown = validate_markdown(payload.get("markdown", ""))
             links = normalize_source_links(payload.get("source_links", []), allowed_links)
             ai_context = render_ai_context(markdown, links)
+            if request_delay_seconds > 0:
+                time.sleep(request_delay_seconds)
             return ai_context, {
                 "prompt_version": PROMPT_VERSION,
                 "cache_key": cache_key,
@@ -183,6 +187,8 @@ def generate_ai_context(
         except (GeminiGenerationError, ValueError) as exc:
             last_error = str(exc)
             feedback = f"Previous output failed validation: {last_error}"
+            if "429" in last_error or "RESOURCE_EXHAUSTED" in last_error:
+                time.sleep(max(request_delay_seconds, min(60, 2 ** attempt)))
 
     raise GeminiGenerationError(f"Failed to rewrite AI Context for {cache_key}: {last_error}")
 
@@ -207,7 +213,8 @@ def main() -> int:
     parser.add_argument("--flush-every", type=int, default=10)
     parser.add_argument("--max-attempts", type=int, default=3)
     parser.add_argument("--timeout-seconds", type=int, default=120)
-    parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--request-delay-seconds", type=float, default=4.5)
+    parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--shard-count", type=int, default=1)
     parser.add_argument("--shard-index", type=int, default=0)
     parser.add_argument("--force", action="store_true")
@@ -272,6 +279,7 @@ def main() -> int:
                     context_columns=context_columns,
                     link_columns=link_columns,
                     max_attempts=args.max_attempts,
+                    request_delay_seconds=args.request_delay_seconds,
                     timeout_seconds=args.timeout_seconds,
                 ): (row, cache_key)
                 for _, row, cache_key in pending

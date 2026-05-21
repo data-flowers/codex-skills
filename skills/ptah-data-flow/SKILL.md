@@ -150,6 +150,7 @@ Required behavior:
 - if the user has a taxonomy idea, evaluate it against the real data and Ptah constraints
 - if the user does not know, use the default approach from the taxonomy reference
 - if the source taxonomy is multi-tagged, choose one final `Subcategory` per row and retain the raw tag set only in helper columns or context fields
+- when balancing taxonomy, make `Subcategory` add detail within `Category` rather than repeating it; prefer 2-9 subcategories per category and avoid final buckets with 5 or fewer rows unless the user explicitly wants rare classes preserved
 - for mixed speaker-company style datasets, use `Name` for the user-facing display identity the user asked for, and move relationship detail such as affiliation into `Description` or helper columns
 - for startup datasets, prefer market verticals or industries for `Subcategory`; do not fall back to alphabetical navigation buckets unless the user explicitly wants navigational groupings instead of semantic taxonomy
 
@@ -157,6 +158,7 @@ Second look:
 
 - inspect final label distribution
 - check whether labels are too coarse, too fragmented, too long, or too sparse
+- check whether subcategory names merely restate category names
 - revise once if the result still looks weak
 
 ### Stage 4: curation and enrichment
@@ -171,6 +173,7 @@ Steps:
 - if `Description` is being generated deterministically, optimize for concise display copy that avoids repeating data already shown in `Name`
 - for website-backed datasets, prefer source URL, profile image, role line, affiliation line, and first strong bio sentence as the deterministic enrichment spine
 - check required external credentials before starting model-backed enrich or rewrite work
+- for Gemini-backed batches, run a small sample first, then use a quota-safe full-run cadence by default: `--workers 1`, `--request-delay-seconds 4.5` or slower for unknown/free-tier keys, cache enabled, and no `--force` unless intentionally regenerating
 - if `Description` or `AI Context` has a defined rewrite policy, use it; bundled rewrite runners and templates count as a defined policy
 - do not substitute a deterministic fact string or source-note concatenation into final `AI Context` just to fill the column
 - if the intended rewrite path is not ready yet, leave the field pending rather than inventing a placeholder just to fill the schema
