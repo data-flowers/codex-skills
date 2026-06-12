@@ -234,6 +234,50 @@ For single-field updates, the PATCH payload must be narrow:
 
 Do not send full row payloads for maintenance updates. This is especially important for attachment fields such as `Logo`; omitting `Logo` from a PATCH preserves it, while sending a stale or malformed `Logo` value can damage it.
 
+### Logo attachment fast path
+
+Use this when the user asks to add or replace a logo for one known entity in an already-published Airtable table.
+
+1. read the progress log for the Airtable ids, PAT status, and current export path
+2. locate the live target row by current Airtable export or filtered records API; prefer the Airtable `record_id` over CSV `Id`
+3. find one stable, official, publicly reachable image URL:
+   - prefer the entity website's favicon/site icon or explicit logo asset for card logos
+   - avoid broad image search unless the official site does not expose a usable asset
+   - avoid date/header/hero assets when a standalone square or wordmark logo exists
+   - if the logo is white on transparent and cards are likely light, prefer an official square icon or colored-background variant
+4. check the image once before patching:
+   - `HEAD` or download should return `200`
+   - content type should be an image type Airtable can ingest
+   - dimensions should be suitable for display, usually square or a clear wordmark
+5. PATCH only the `Logo` field:
+
+```json
+{
+  "records": [
+    {
+      "id": "rec...",
+      "fields": {
+        "Logo": [
+          {
+            "url": "https://example.com/logo.png",
+            "filename": "entity-logo.png"
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+6. verify the same record after Airtable processes the attachment:
+   - `Logo` attachment count is exactly what was intended
+   - attachment `type`, `size`, `width`, `height`, URL, and thumbnails are present when available
+   - untouched fields such as `Name`, `Website`, `AI Context`, and `Published` still have expected values
+7. re-export the view only after the successful patch if the local export is used as a handoff artifact
+8. update the progress log with the record id, source image URL, attachment count, dimensions, and refreshed export path
+
+This fast path should normally avoid full schema audits, AI generation, full CSV rewrites, and repeated page scraping unless the remote boundary is unknown or the logo source is ambiguous.
+
 Preservation checks after maintenance:
 
 - compare untouched fields for every patched record before and after upload when a local pre-patch export exists

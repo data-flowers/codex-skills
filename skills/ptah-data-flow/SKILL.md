@@ -32,6 +32,7 @@ This skill is for running local OODA loops around that workflow. It should help 
 - If the source is website-backed and some rows come back sparse or blocked, record those rows explicitly and support a targeted refresh pass later instead of forcing a full rebuild.
 - After a network-context change such as VPN, proxy, or auth improvement, prefer a targeted re-fetch of sparse rows before declaring the source permanently weak.
 - For post-publish maintenance, prefer the smallest safe delta: detect missing, malformed, or stale rows; generate only those rows; patch only the intended field(s); then re-export and verify the remote result.
+- For attachment-only logo fixes, use the fast path in `references/airtable-boundary.md`: find the live record id, choose the official stable image URL, PATCH only `Logo`, and verify attachment metadata.
 - Never use a full-record Airtable update for a single-field maintenance job. Use record-scoped PATCH payloads that include only the field being changed, so attachment fields such as `Logo` are preserved.
 - Do not stop at a local draft if the next bounded transform is obvious and all required inputs, credentials, and tools are already available. Continue autonomously.
 - If the next step is blocked by a missing external credential, permission, or target identifier, say that explicitly and ask for it directly instead of acting finished.
@@ -240,6 +241,7 @@ Incremental maintenance rule:
 - identify target rows by record id, missing target field, stale hash, or explicit user-named entity
 - generate only those rows, using existing caches where source fields did not change
 - patch only the target field, never untouched fields such as `Logo`
+- for logo-only work, prefer a direct record-scoped attachment PATCH over regenerating or re-uploading a CSV
 - re-export after patching and verify both content quality and preservation of unrelated fields for the touched rows
 
 Routing rule:
