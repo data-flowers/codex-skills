@@ -311,6 +311,15 @@ If the user provides an Airtable URL:
 - once the PAT is available, inspect and audit the remote schema before upload or Ptah connection work
 - if the audit shows a contract mismatch, use the bundled mutation helper instead of asking the user to rename fields by hand
 
+If the user refers to an existing Airtable key instead of pasting one, for example "use the Airtable token from aipanic" or "use the existing PAT from euro-stack":
+
+- find the referenced local `.env` or trusted workspace source
+- copy the Airtable secret and any explicitly needed Airtable ids into the current working area's `.env`
+- keep the current target base/table/view ids authoritative if the user supplied a new target; do not accidentally reuse stale ids from the source `.env`
+- make sure the current working area's `.env` is gitignored
+- record only `Airtable PAT: present` in the progress log, plus the fact that the token was copied from a local named source if useful
+- do not print the token or keep using inline secret-bearing commands once the local `.env` exists
+
 If the user has no Airtable URL yet:
 
 - do not pretend remote inspection is possible
@@ -536,6 +545,12 @@ Examples of field semantics:
 - inspect metadata first
 - determine whether the issue is access, schema, table lookup, or data quality
 - if the issue is data quality, route back upstream
+
+### Upload batching
+
+- For Airtable publish and maintenance jobs, process records in 100-record work batches by default.
+- If the Airtable endpoint or helper enforces a lower per-request record limit, keep the 100-record work batch but subchunk internally to the endpoint-safe request size.
+- Keep upload output phrased in both layers when relevant: work batches for operator progress, API requests for rate-limit/debugging clarity.
 
 ### After publish
 

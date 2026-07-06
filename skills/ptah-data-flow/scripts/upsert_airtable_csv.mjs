@@ -7,14 +7,16 @@
 //
 // Notes:
 // - Dry-run by default. Add --execute to send requests.
-// - Uses PATCH + performUpsert with batches of up to 10 records.
+// - Uses PATCH + performUpsert in 100-record work batches by default.
+// - Each work batch is internally split into endpoint-safe API requests.
 // - Uses Airtable field names from the CSV header.
 
 import fs from "node:fs/promises";
 import path from "node:path";
 
 const API_ROOT = "https://api.airtable.com/v0";
-const DEFAULT_BATCH_SIZE = 10;
+const DEFAULT_BATCH_SIZE = 100;
+const API_RECORDS_PER_REQUEST = 10;
 const DEFAULT_THROTTLE_MS = 250;
 
 function arg(name, fallback = null) {
@@ -293,10 +295,6 @@ async function main() {
   const limit = limitArg ? parsePositiveInt(limitArg, "limit") : null;
   const execute = hasFlag("execute");
 
-  if (batchSize > 10) {
-    fail("batch-size cannot exceed 10 for Airtable record batch endpoints.");
-  }
-
   if (rawUrl) {
     const parsed = parseAirtableUrl(rawUrl);
     baseId ||= parsed.baseId;
@@ -333,15 +331,18 @@ async function main() {
 
   const limitedRows = limit ? csvRows.slice(0, limit) : csvRows;
   const payloadRows = limitedRows.map((row) => prepareFieldPayload(row, headers, fieldMap));
-  const batches = chunk(payloadRows, batchSize);
+  const workBatches = chunk(payloadRows, batchSize);
+  const apiBatches = workBatches.flatMap((workBatch) => chunk(workBatch, API_RECORDS_PER_REQUEST));
 
   console.log(`Base: ${baseId}`);
   console.log(`Table: ${table.name} (${table.id})`);
   console.log(`CSV: ${csvPath}`);
   console.log(`Rows: ${payloadRows.length}`);
   console.log(`Merge fields: ${mergeFields.join(", ")}`);
-  console.log(`Batch size: ${batchSize}`);
-  console.log(`Estimated API requests: ${batches.length}`);
+  console.log(`Work batch size: ${batchSize}`);
+  console.log(`API request size: ${API_RECORDS_PER_REQUEST}`);
+  console.log(`Estimated work batches: ${workBatches.length}`);
+  console.log(`Estimated API requests: ${apiBatches.length}`);
   console.log(`Throttle: ${throttleMs}ms`);
   console.log(`Mode: ${execute ? "execute" : "dry-run"}`);
 
@@ -355,8 +356,8 @@ async function main() {
   let created = 0;
   let updated = 0;
 
-  for (let index = 0; index < batches.length; index += 1) {
-    const batch = batches[index];
+  for (let index = 0; index < apiBatches.length; index += 1) {
+    const batch = apiBatches[index];
     const response = await fetchJson(endpoint, token, {
       method: "PATCH",
       body: {
@@ -371,10 +372,10 @@ async function main() {
     updated += Array.isArray(response.updatedRecords) ? response.updatedRecords.length : 0;
 
     console.log(
-      `Batch ${index + 1}/${batches.length}: created=${Array.isArray(response.createdRecords) ? response.createdRecords.length : 0} updated=${Array.isArray(response.updatedRecords) ? response.updatedRecords.length : 0}`
+      `API request ${index + 1}/${apiBatches.length}: created=${Array.isArray(response.createdRecords) ? response.createdRecords.length : 0} updated=${Array.isArray(response.updatedRecords) ? response.updatedRecords.length : 0}`
     );
 
-    if (index < batches.length - 1) {
+    if (index < apiBatches.length - 1) {
       await sleep(throttleMs);
     }
   }

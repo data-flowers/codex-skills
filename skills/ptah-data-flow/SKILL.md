@@ -26,6 +26,7 @@ This skill is for running local OODA loops around that workflow. It should help 
 - Always do a second look after a meaningful stage output. Do not wait for the user to explicitly ask for review.
 - Maintain a local progress log so the workflow can survive interrupted sessions. Read it at the start if it exists, and update it after each meaningful stage output.
 - When the workflow needs tokens or API keys, store them in a local `.env` file under the working area when possible, and make sure that file is excluded from git. Do not keep retyping secrets inline in commands if a local `.env` can carry them.
+- When the user refers to an already-shared Airtable PAT, Gemini key, or another local project/key source, find that key in the named local source and copy only the required environment variable(s) into the current working area's `.env`. Do this instead of asking the user to paste the secret again. Never print the secret, paste it into the progress log, or leave it only in an inline shell command.
 - Stay self-contained. Default to the skill bundle, the user's explicit working area, and the workflow artifacts created during the current run. The working area may be a file, a folder, or a small set of clearly named paths. Do not inspect unrelated workspace files, repo precedent, or local pipelines for guidance. Only expand scope if the user explicitly names the file or folder, or asks for integration with existing local code.
 - Establish dataset scope before running batch logic. If the working area contains multiple datasets, first identify the active dataset, dataset-specific source of truth, and dataset-specific output paths before adapting or running any script.
 - When source recovery depends on live web pages or APIs, make fetches retry-safe. One transient network failure should not collapse the whole run.
@@ -63,7 +64,7 @@ This skill is for running local OODA loops around that workflow. It should help 
 7. Do an early credential preflight when the workflow clearly points toward model-backed Stage 4 work:
    - check whether `GEMINI_API_KEY` is already available if curated `Description` or `AI Context` will be needed
    - check whether `EXA_API_KEY` is already available if external enrichment or discovery will likely be needed
-   - if `GEMINI_API_KEY` is missing and curated rewrite is clearly on the critical path, ask for it early rather than waiting until after all deterministic local steps
+   - if `GEMINI_API_KEY` is missing and curated rewrite is clearly on the critical path, first check whether the user referenced an existing local key source and copy it into the current working area's `.env`; ask only if no referenced/local key can be found
    - if `EXA_API_KEY` is missing, do not block by default; fall back to ordinary web search unless the user explicitly wants Exa
 
 ## Progress log
@@ -174,7 +175,7 @@ Steps:
 - if `Description` is being generated deterministically, optimize for concise display copy that avoids repeating data already shown in `Name`
 - for website-backed datasets, prefer source URL, profile image, role line, affiliation line, and first strong bio sentence as the deterministic enrichment spine
 - check required external credentials before starting model-backed enrich or rewrite work
-- for Gemini-backed batches, run a small sample first, then use a quota-safe full-run cadence by default: `--workers 1`, `--request-delay-seconds 4.5` or slower for unknown/free-tier keys, cache enabled, and no `--force` unless intentionally regenerating
+- for Gemini-backed batches, run a small sample first, then use a quota-safe full-run cadence: prefer `--workers 5` for normal paid Gemini accounts, but fall back to `--workers 1`, `--request-delay-seconds 4.5` or slower if the account is unknown, free-tier, downgraded, newly throttled, or returns 429/quota errors; keep cache enabled and avoid `--force` unless intentionally regenerating
 - if `Description` or `AI Context` has a defined rewrite policy, use it; bundled rewrite runners and templates count as a defined policy
 - do not substitute a deterministic fact string or source-note concatenation into final `AI Context` just to fill the column
 - if the intended rewrite path is not ready yet, leave the field pending rather than inventing a placeholder just to fill the schema

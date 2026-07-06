@@ -63,8 +63,9 @@ Do not hammer Gemini and then recover from 429s. Design the batch to succeed on 
 Default posture:
 
 - Run a tiny sample first, usually 3-5 rows.
-- For unknown or free-tier keys, run the full batch with `--workers 1` and `--request-delay-seconds 4.5` or slower.
-- Use higher concurrency only after confirming the key's actual quota and doing the math. Requests per minute roughly equals `workers * 60 / request_delay_seconds`.
+- For normal paid Gemini accounts, prefer running the full batch with `--workers 5` after the sample passes. Use a request delay that keeps the combined request rate inside the account's quota. Requests per minute roughly equals `workers * 60 / request_delay_seconds`.
+- If the account may be downgraded, free-tier, newly throttled, or shows 429/quota errors, fall back to `--workers 1` and `--request-delay-seconds 4.5` or slower, then resume from cache.
+- Remember the user has seen Gemini jobs get throttled when the account was downgraded; do not treat that as evidence that five workers is inherently unsafe on a healthy account.
 - Keep caching on by default. Do not use `--force` unless intentionally regenerating.
 - Flush every 10-20 rows so an interruption preserves useful output.
 - Treat a 429 as a configuration failure: lower workers, increase delay, and resume from cache. Do not repeatedly restart at the same rate.

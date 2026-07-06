@@ -11,8 +11,10 @@ Credential rule:
 
 - this skill does not manage secrets for the user
 - it should check whether the required key is already available in the environment or current run context
+- if the user refers to an existing Gemini key or a local project that has one, find that local key and copy `GEMINI_API_KEY` or the equivalent provider variable into the current working area's `.env`; do not ask the user to paste it again
 - if Gemini-backed rewrite is clearly required and `GEMINI_API_KEY` is missing, ask for it early
 - if `EXA_API_KEY` is missing, fall back to ordinary web search unless the user explicitly wants Exa or the job clearly needs Websets-style scale
+- never print copied API keys, paste them into progress logs, or leave them only in inline shell commands
 
 Do not jump straight to rewritten `Description` or `AI Context` if the source rows only have weak inputs such as:
 
