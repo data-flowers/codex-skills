@@ -53,7 +53,6 @@ Before deciding:
 - look at tail labels
 - inspect whether one label dominates too much
 - inspect whether labels are too fragmented
-- inspect membership inside large buckets, not only counts
 
 Do not decide from 5 rows.
 
@@ -93,32 +92,16 @@ Avoid:
 After assigning or proposing labels, review:
 
 - bucket sizes
-- bucket membership for the largest labels
 - overly broad buckets
 - tiny buckets that should merge
 - long labels that can be compressed
+- maximum `Subcategory` label length; revise any label longer than 24 characters unless the user explicitly requires exact source wording
 - noisy labels that should normalize
-- redundant `Category` / `Subcategory` pairs
 - category/subcategory complementarity: the subcategory should add a useful distinction inside the category, not restate it
 - category shape: each category should usually have 2-9 subcategories
 - bucket floor: avoid final categories or subcategories with 5 or fewer rows unless the dataset is very small or the user explicitly wants rare classes preserved
 
 Revise once if needed.
-
-Emit a small taxonomy diagnostics artifact when practical. It should include at least row id, name, final `Category`, final `Subcategory`, and the signal or source value that drove the assignment. Counts alone are not enough when labels are broad.
-
-### 8. Check category/subcategory usefulness
-
-`Subcategory` should add information beyond `Category`. Avoid labels that repeat the parent, such as `Climate & Energy / Climate & Energy` or `Commerce & Marketplaces / Retail Marketplaces`.
-
-If a category has only one subcategory, keep that subcategory only when it clarifies a longer or ambiguous parent category. Otherwise prefer using only `Category`, or leave `Subcategory` empty if the downstream surface supports it.
-
-For controlled vocabularies, run a small validation pass after assignment:
-
-- count distinct subcategories
-- confirm no one-row subcategory buckets unless intentionally preserved
-- check token overlap between category and subcategory labels
-- inspect examples from each low-volume bucket
 
 ## Shape constraints
 
@@ -128,6 +111,7 @@ When the user asks for a "balanced" or "meaningful" taxonomy, enforce these chec
 - No category has more than 9 subcategories.
 - Every final category has more than 5 rows.
 - Every final subcategory has more than 5 rows.
+- Every final `Subcategory` label is 24 characters or fewer, including spaces and punctuation, unless the user explicitly requires exact source wording. Use short natural labels such as `Meetings & Events`; never rely on the viewer to truncate a longer label.
 - Subcategory names complement category names. Good: `Category = STEM & Technical Learning`, `Subcategory = Math & Logic Practice`. Weak: `Category = Math Learning`, `Subcategory = Math Games & Practice`.
 
 If the data cannot satisfy these constraints without absurd labels, merge sparse buckets upward and record the tradeoff in the progress log.
@@ -159,19 +143,6 @@ Use:
 
 and derive those from the full dataset plus text context.
 
-### Pattern: homogeneous directory with topic navigation
-
-Sometimes every row already shares one entity type, such as organizations, institutions, or agencies, and the user explicitly wants meaningful topic navigation.
-
-In that case, you may use:
-
-- `Category = broad topical area`
-- `Subcategory = additive narrower focus`
-
-This is an exception to the default entity-type model. Record the reason in the progress log and verify the taxonomy by reviewing both label counts and the membership of large buckets.
-
-Do not use `Subcategory` as a second copy of the category. If there is no useful second dimension, category-only navigation is better than redundant subcategory labels.
-
 ### Pattern: startups with weak or missing industry fields
 
 This is common in event sites and sponsor grids.
@@ -198,5 +169,3 @@ A good taxonomy is:
 - balanced enough for navigation
 - shaped so subcategories add detail rather than echoing categories
 - checked against the full dataset
-- free of redundant category/subcategory wording
-- consolidated enough that navigation buckets contain meaningful groups

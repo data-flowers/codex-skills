@@ -238,6 +238,11 @@ Do not send full row payloads for maintenance updates. This is especially import
 
 Use this when the user asks to add or replace a logo for one known entity in an already-published Airtable table.
 
+If the source is oversized, multiple logos need recurring refreshes, or
+optimized Airtable storage is part of the request, read
+[`attachment-images.md`](attachment-images.md) and use or adapt
+[`scripts/optimize_airtable_attachments.py`](../scripts/optimize_airtable_attachments.py).
+
 1. read the progress log for the Airtable ids, PAT status, and current export path
 2. locate the live target row by current Airtable export or filtered records API; prefer the Airtable `record_id` over CSV `Id`
 3. find one stable, official, publicly reachable image URL:
@@ -249,6 +254,8 @@ Use this when the user asks to add or replace a logo for one known entity in an 
    - `HEAD` or download should return `200`
    - content type should be an image type Airtable can ingest
    - dimensions should be suitable for display, usually square or a clear wordmark
+   - if either dimension exceeds the viewer's realistic render size, transform
+     it locally before upload; use a 512×512 cap by default
 5. PATCH only the `Logo` field:
 
 ```json
@@ -277,6 +284,10 @@ Use this when the user asks to add or replace a logo for one known entity in an 
 8. update the progress log with the record id, source image URL, attachment count, dimensions, and refreshed export path
 
 This fast path should normally avoid full schema audits, AI generation, full CSV rewrites, and repeated page scraping unless the remote boundary is unknown or the logo source is ambiguous.
+
+For transformed attachments, upload the optimized bytes first, identify the
+new attachment id, then PATCH only `Logo` to retain that id. Never clear the
+old attachment before the upload succeeds.
 
 Preservation checks after maintenance:
 
@@ -568,5 +579,8 @@ Examples of field semantics:
   - generic dry-run or execute path for batched CSV upserts
 - [`scripts/ptah_airtable_connection.mjs`](../scripts/ptah_airtable_connection.mjs)
   - Ptah Airtable connection test/save helper against `/airtable-admin`
+- [`scripts/optimize_airtable_attachments.py`](../scripts/optimize_airtable_attachments.py)
+  - ImageMagick transform, manifest, upload-first attachment replacement, and
+    unrelated-field preservation verification
 
 Use these bundled tools by default. Do not go looking for other Airtable helpers elsewhere in the user's workspace unless the user explicitly points you to one.

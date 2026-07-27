@@ -1,6 +1,6 @@
 ---
 name: ptah-data-flow
-description: Use when a user needs to turn a rough list, folder of raw data, CSV, HTML export, nested list, markdown, PDF, Airtable base, or broken Ptah publish flow into a clean Ptah-ready dataset. This skill treats Airtable as storage and publish plumbing, not the main editing surface.
+description: Use when a user needs to turn a rough list, folder of raw data, CSV, HTML export, nested list, markdown, PDF, Airtable base, or broken Ptah publish flow into a clean Ptah-ready dataset, including compacting and safely replacing logo or image attachments. This skill treats Airtable as storage and publish plumbing, not the main editing surface.
 ---
 # ptah-data-flow
 
@@ -33,7 +33,8 @@ This skill is for running local OODA loops around that workflow. It should help 
 - If the source is website-backed and some rows come back sparse or blocked, record those rows explicitly and support a targeted refresh pass later instead of forcing a full rebuild.
 - After a network-context change such as VPN, proxy, or auth improvement, prefer a targeted re-fetch of sparse rows before declaring the source permanently weak.
 - For post-publish maintenance, prefer the smallest safe delta: detect missing, malformed, or stale rows; generate only those rows; patch only the intended field(s); then re-export and verify the remote result.
-- For attachment-only logo fixes, use the fast path in `references/airtable-boundary.md`: find the live record id, choose the official stable image URL, PATCH only `Logo`, and verify attachment metadata.
+- For attachment-only logo fixes, use the fast path in `references/airtable-boundary.md`: find the live record id, choose the official stable image URL, compact oversized assets first, PATCH only `Logo`, and verify attachment metadata.
+- When source images may be large or a recurring attachment refresh is needed, read `references/attachment-images.md` and adapt or run `scripts/optimize_airtable_attachments.py`. Default to a 512×512 maximum, aspect-preserving WebP, stripped metadata, a local manifest, upload-first replacement, and preservation checks.
 - Never use a full-record Airtable update for a single-field maintenance job. Use record-scoped PATCH payloads that include only the field being changed, so attachment fields such as `Logo` are preserved.
 - Do not stop at a local draft if the next bounded transform is obvious and all required inputs, credentials, and tools are already available. Continue autonomously.
 - If the next step is blocked by a missing external credential, permission, or target identifier, say that explicitly and ask for it directly instead of acting finished.
@@ -58,6 +59,7 @@ This skill is for running local OODA loops around that workflow. It should help 
    - [references/exa-websets.md](references/exa-websets.md) when Exa-backed enrichment or discovery is in play
    - [references/rewrite-runners.md](references/rewrite-runners.md) when you need to adapt a Gemini batch rewrite runner into the active dataset working area
    - [references/airtable-boundary.md](references/airtable-boundary.md) when publish, schema, PAT, base, table, view, or connection repair is in play
+   - [references/attachment-images.md](references/attachment-images.md) when logos or image attachments must be fetched, compacted, refreshed, or synchronized to Airtable
    - [references/artifacts.md](references/artifacts.md) when you need the allowed working-area model or bundled tool entrypoints
    - [references/field-notes.md](references/field-notes.md) when a prior project surfaces reusable workflow mistakes, source-of-truth changes, taxonomy redundancy, or Airtable update behavior
    - [references/prompt-starters.md](references/prompt-starters.md) when the user is vague, resuming interrupted work, or needs a clean continuation prompt shape
@@ -243,6 +245,8 @@ Incremental maintenance rule:
 - generate only those rows, using existing caches where source fields did not change
 - patch only the target field, never untouched fields such as `Logo`
 - for logo-only work, prefer a direct record-scoped attachment PATCH over regenerating or re-uploading a CSV
+- for a batch of logo or image replacements, create a local optimized-asset manifest first, pilot the largest source, then use the bundled attachment helper or an adapted dataset-scoped copy
+- omit attachment fields from general-purpose Airtable upload artifacts after attachment optimization, unless that upload intentionally owns those attachments
 - re-export after patching and verify both content quality and preservation of unrelated fields for the touched rows
 
 Routing rule:

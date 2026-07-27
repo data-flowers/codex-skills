@@ -52,6 +52,8 @@ Examples:
 - publish-ready 12-field export
 - dataset-specific builder or rewrite script
 - dataset-specific cache files
+- optimized image directory plus source/optimized manifest
+- attachment-only Airtable verification report
 
 The exact names can vary. What matters is that the agent treats one of them as the current source of truth and records that in the progress log.
 
@@ -59,6 +61,7 @@ The exact names can vary. What matters is that the agent treats one of them as t
 
 - [`scripts/inspect_airtable_table.mjs`](../scripts/inspect_airtable_table.mjs)
 - [`scripts/upsert_airtable_csv.mjs`](../scripts/upsert_airtable_csv.mjs)
+- [`scripts/optimize_airtable_attachments.py`](../scripts/optimize_airtable_attachments.py)
 
 ## Not default behavior
 
