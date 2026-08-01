@@ -344,7 +344,8 @@ optimized Airtable storage is part of the request, read
      direct SVG and ICO attachments are unsupported
    - dimensions should be suitable for display, usually square or a clear wordmark
    - if either dimension exceeds the viewer's realistic render size, transform
-     it locally before upload; use a 512×512 cap by default
+     it locally before upload; use a 256-pixel maximum dimension by default and
+     treat 512 pixels as a ceiling for verified high-density or detailed needs
    - inspect alpha and contrast on both light and dark card surfaces; for a
      white/translucent mark, composite it onto an official brand or site-theme
      background and run the optimizer with `--require-opaque`

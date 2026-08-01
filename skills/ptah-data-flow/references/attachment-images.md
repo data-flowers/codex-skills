@@ -27,11 +27,13 @@ without disturbing the rest of a published record.
   unauthorized, or returns a placeholder, fall back to the official site asset,
   published theme, or a relevant wordmark rather than blocking the workflow.
 - Keep originals temporary unless the user explicitly wants an archive.
-- Process the first frame only.
+- Process the first frame for ordinary multi-frame images; apply the adaptive
+  frame-selection rule below for ICO sources.
 - Auto-orient from source metadata.
 - Preserve aspect ratio and never upscale.
-- Cap width and height at 512 pixels unless the viewer has a documented need
-  for a different maximum.
+- Use a 256-pixel maximum dimension by default. A simple logo displayed only on
+  small cards may use 128 pixels. Treat 512 pixels as a ceiling, not a target,
+  and use it only when the viewer or logo detail justifies the larger asset.
 - Convert to sRGB WebP, strip metadata, and start near quality 84.
 - Use a source hash in the optimized filename so a changed image cannot be
   mistaken for an already-current attachment merely because its byte size is
@@ -45,11 +47,12 @@ SVG and ICO may be valid source assets, but they are not valid final Ptah/Airtab
 attachments. Normalize them during the local prepare phase, before any attachment
 upload or URL-based PATCH:
 
-- For SVG, rasterize at sufficient density for the intended output, then resize
-  to the normal 512-pixel maximum and encode as PNG or WebP.
-- For ICO, inspect every embedded frame and select the largest usable frame;
-  do not assume frame zero is the best representation. Encode that frame as PNG
-  or WebP.
+- For SVG, rasterize at twice the intended final maximum for antialiasing, capped
+  at a 1024-pixel intermediate, then downsample and encode as PNG or WebP. With
+  the 256-pixel default output, the normal SVG intermediate is 512 pixels.
+- For ICO, inspect every embedded frame and select the smallest frame that meets
+  the final target. If no frame is large enough, use the largest available frame
+  without upscaling it. Do not assume frame zero is the best representation.
 - Validate the decoded source format and the converted output MIME type. Do not
   trust a URL suffix or response header alone.
 - Run the normal transparency, contrast, opacity, dimensions, hash, and thumbnail
@@ -59,8 +62,8 @@ upload or URL-based PATCH:
   attachment field.
 
 `scripts/optimize_airtable_attachments.py` performs this conversion to WebP in
-its prepare phase. It rasterizes SVG inputs at high resolution and selects the
-largest ICO frame before applying the normal output policy. Review the manifest
+its prepare phase. It rasterizes SVG inputs adaptively and selects the smallest
+sufficient ICO frame before applying the normal output policy. Review the manifest
 before execution and confirm that `sourceConversion.required` is true for these
 inputs.
 
@@ -101,7 +104,7 @@ Use ImageMagick for the deterministic transform:
 magick 'source-image[0]' \
   -auto-orient \
   -colorspace sRGB \
-  -resize '512x512>' \
+  -resize '256x256>' \
   -strip \
   -quality 84 \
   -define webp:method=6 \
@@ -130,7 +133,9 @@ python3 scripts/build_contrast_logo_card.py \
 ```
 
 For an existing square brand card, add `--input-mode card`. The QA image includes
-full-size and 36-pixel previews on white and black panels. Inspect both, then run
+full-size and 36-pixel previews on white and black panels. The builder defaults
+to a 256-pixel card; use `--size 512` only for a verified high-density or detailed
+mark requirement. Inspect both previews, then run
 the attachment optimizer with `--require-opaque`. Do not use this helper to
 invent a mark or replace a real logo with a generic glyph.
 

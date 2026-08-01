@@ -49,7 +49,7 @@ An opaque black card can still lose its edge on black, and a white card can disa
 
 ## SVG and ICO Attachment Sources
 
-Treat SVG and ICO as unsupported final attachments even when they are the best official source asset. Normalize them locally before upload: rasterize SVG at sufficient density, select the largest embedded ICO frame, and encode the result as a reviewed PNG or WebP. Never place the original SVG/ICO URL directly in an Airtable attachment field.
+Treat SVG and ICO as unsupported final attachments even when they are the best official source asset. Normalize them locally before upload. Default to a 256-pixel final maximum, rasterize SVG at 2× the intended output with a 1024-pixel intermediate cap, and select the smallest ICO frame that meets the target or otherwise the largest available frame without upscaling. Use 128 pixels for simple small-card icons when sufficient; reserve the 512-pixel ceiling for verified high-density or detailed-logo needs. Encode the result as a reviewed PNG or WebP, and never place the original SVG/ICO URL directly in an Airtable attachment field.
 
 ## Gemini Workflow
 

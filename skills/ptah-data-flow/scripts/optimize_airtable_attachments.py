@@ -129,7 +129,7 @@ def identify(magick: str, path: Path, frame: int = 0) -> dict[str, Any]:
     }
 
 
-def largest_ico_frame(magick: str, path: Path) -> int:
+def select_ico_frame(magick: str, path: Path, target_size: int) -> int:
     result = subprocess.run(
         [
             magick,
@@ -148,11 +148,22 @@ def largest_ico_frame(magick: str, path: Path) -> int:
         frames.append((int(scene), int(width), int(height)))
     if not frames:
         raise RuntimeError("ICO source contains no decodable frames")
-    return max(frames, key=lambda frame: (frame[1] * frame[2], frame[1], frame[2]))[0]
+    sufficient = [frame for frame in frames if max(frame[1], frame[2]) >= target_size]
+    if sufficient:
+        selected = min(
+            sufficient,
+            key=lambda frame: (max(frame[1], frame[2]), frame[1] * frame[2]),
+        )
+    else:
+        selected = max(
+            frames,
+            key=lambda frame: (max(frame[1], frame[2]), frame[1] * frame[2]),
+        )
+    return selected[0]
 
 
 def rasterize_svg(source: Path, output: Path, target_size: int) -> str:
-    raster_size = max(target_size * 4, 1024)
+    raster_size = min(target_size * 2, 1024)
     rsvg_convert = shutil.which("rsvg-convert")
     if rsvg_convert:
         subprocess.run(
@@ -254,7 +265,9 @@ def optimize_one(
         original_info = identify(magick, input_path)
         source_format = str(original_info["format"]).upper()
         source_frame = (
-            largest_ico_frame(magick, input_path) if source_format == "ICO" else 0
+            select_ico_frame(magick, input_path, max_dimension)
+            if source_format == "ICO"
+            else 0
         )
         source_selector = f"{input_path}[{source_frame}]"
         if source_format == "ICO":
@@ -783,7 +796,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--name-field", default="Name")
     parser.add_argument("--source-field", default="Logo")
     parser.add_argument("--attachment-field", default="Logo")
-    parser.add_argument("--max-dimension", type=int, default=512)
+    parser.add_argument("--max-dimension", type=int, default=256)
     parser.add_argument("--quality", type=int, default=84)
     parser.add_argument(
         "--require-opaque",

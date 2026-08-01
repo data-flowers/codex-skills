@@ -44,9 +44,9 @@ def build_card(args: argparse.Namespace, source: Path, output: Path) -> None:
     outer_end = args.size - args.outer_keyline_width - 1
     interior_end = args.size - frame_width - 1
     source_geometry = (
-        f"{interior}x{interior}"
+        f"{interior}x{interior}>"
         if args.input_mode == "card"
-        else f"{args.mark_size}x{args.mark_size}"
+        else f"{args.mark_size}x{args.mark_size}>"
     )
     command = [
         args.magick,
@@ -153,15 +153,15 @@ def main() -> int:
     parser.add_argument("--output", required=True)
     parser.add_argument("--background", required=True)
     parser.add_argument("--input-mode", choices=["mark", "card"], default="mark")
-    parser.add_argument("--size", type=int, default=512)
-    parser.add_argument("--mark-size", type=int, default=320)
+    parser.add_argument("--size", type=int, default=256)
+    parser.add_argument("--mark-size", type=int)
     parser.add_argument("--outer-keyline", default="#ffffff")
     parser.add_argument("--inner-keyline", default="#000000")
-    parser.add_argument("--outer-keyline-width", type=int, default=24)
-    parser.add_argument("--inner-keyline-width", type=int, default=24)
+    parser.add_argument("--outer-keyline-width", type=int)
+    parser.add_argument("--inner-keyline-width", type=int)
     parser.add_argument("--quality", type=int, default=84)
     parser.add_argument("--qa-output")
-    parser.add_argument("--qa-preview-size", type=int, default=320)
+    parser.add_argument("--qa-preview-size", type=int)
     parser.add_argument("--thumbnail-size", type=int, default=36)
     parser.add_argument("--magick", default=shutil.which("magick") or "")
     args = parser.parse_args()
@@ -170,8 +170,18 @@ def main() -> int:
         raise SystemExit("ImageMagick `magick` was not found.")
     if args.size <= 0:
         raise SystemExit("--size must be positive.")
+    if args.mark_size is None:
+        args.mark_size = round(args.size * 0.625)
+    if args.outer_keyline_width is None:
+        args.outer_keyline_width = max(1, round(args.size * 0.047))
+    if args.inner_keyline_width is None:
+        args.inner_keyline_width = max(1, round(args.size * 0.047))
+    if args.qa_preview_size is None:
+        args.qa_preview_size = min(args.size, 320)
     if args.outer_keyline_width <= 0 or args.inner_keyline_width <= 0:
         raise SystemExit("Both keyline widths must be positive.")
+    if args.qa_preview_size <= 0:
+        raise SystemExit("--qa-preview-size must be positive.")
     if args.thumbnail_size <= 0 or args.thumbnail_size > args.size:
         raise SystemExit("--thumbnail-size must be positive and no larger than --size.")
 
@@ -200,12 +210,16 @@ def main() -> int:
                 "outputInfo": output_info,
                 "qaOutput": str(qa_output) if qa_output else None,
                 "policy": {
+                    "size": args.size,
+                    "markSize": args.mark_size,
                     "background": args.background,
                     "outerKeyline": args.outer_keyline,
                     "innerKeyline": args.inner_keyline,
                     "outerKeylineWidth": args.outer_keyline_width,
                     "innerKeylineWidth": args.inner_keyline_width,
                     "inputMode": args.input_mode,
+                    "qaPreviewSize": args.qa_preview_size,
+                    "thumbnailSize": args.thumbnail_size,
                 },
             },
             indent=2,
