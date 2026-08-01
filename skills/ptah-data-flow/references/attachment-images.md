@@ -7,6 +7,7 @@ without disturbing the rest of a published record.
 ## Contents
 
 - [Default image policy](#default-image-policy)
+- [Unsupported source formats](#unsupported-source-formats)
 - [Transparency and contrast policy](#transparency-and-contrast-policy)
 - [Dual-background card builder](#dual-background-card-builder)
 - [Bundled helper](#bundled-helper)
@@ -18,6 +19,9 @@ without disturbing the rest of a published record.
 - Fetch the official source image retry-safely.
 - Validate the decoded image, not the filename extension alone; an endpoint that
   ends in `.png` may still return HTML or an error document.
+- Treat direct SVG and ICO attachments as unsupported at the publish boundary.
+  Convert them locally before upload; never send the original SVG/ICO URL as an
+  Airtable attachment value.
 - Treat logo services such as Logo.dev as optional accelerators. Use them only
   with a valid key and verify the returned identity. If the service is missing,
   unauthorized, or returns a placeholder, fall back to the official site asset,
@@ -34,6 +38,31 @@ without disturbing the rest of a published record.
   unchanged.
 - Record original and optimized MIME type, dimensions, bytes, SHA-256, source,
   output path, and compression percentage in a local manifest.
+
+## Unsupported source formats
+
+SVG and ICO may be valid source assets, but they are not valid final Ptah/Airtable
+attachments. Normalize them during the local prepare phase, before any attachment
+upload or URL-based PATCH:
+
+- For SVG, rasterize at sufficient density for the intended output, then resize
+  to the normal 512-pixel maximum and encode as PNG or WebP.
+- For ICO, inspect every embedded frame and select the largest usable frame;
+  do not assume frame zero is the best representation. Encode that frame as PNG
+  or WebP.
+- Validate the decoded source format and the converted output MIME type. Do not
+  trust a URL suffix or response header alone.
+- Run the normal transparency, contrast, opacity, dimensions, hash, and thumbnail
+  checks against the converted raster asset.
+- Upload or PATCH only the converted raster bytes. Preserve the original SVG/ICO
+  URL in provenance or the local manifest when useful, never in the final
+  attachment field.
+
+`scripts/optimize_airtable_attachments.py` performs this conversion to WebP in
+its prepare phase. It rasterizes SVG inputs at high resolution and selects the
+largest ICO frame before applying the normal output policy. Review the manifest
+before execution and confirm that `sourceConversion.required` is true for these
+inputs.
 
 ## Transparency and contrast policy
 
@@ -168,7 +197,8 @@ Use this order:
 
 1. Refresh the canonical source dataset.
 2. Fetch and transform all image-bearing rows locally.
-3. Require zero transform errors and inspect the largest originals, largest
+3. Require zero transform errors, confirm that every SVG/ICO source was converted
+   before upload, and inspect the largest originals, largest
    outputs, maximum dimensions, aggregate compression, and any file that grew.
 4. Pilot the largest source image against Airtable.
 5. Verify the pilot's attachment count and all unrelated fields.

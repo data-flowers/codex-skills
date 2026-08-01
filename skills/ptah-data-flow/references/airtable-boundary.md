@@ -336,9 +336,12 @@ optimized Airtable storage is part of the request, read
    - avoid broad image search unless the official site does not expose a usable asset
    - avoid date/header/hero assets when a standalone square or wordmark logo exists
    - if the logo is white on transparent and cards are likely light, prefer an official square icon or colored-background variant
+   - treat SVG and ICO as source formats only; convert them locally to a reviewed
+     PNG or WebP and do not PATCH the original URL into Airtable
 4. check the image once before patching:
    - `HEAD` or download should return `200`
-   - content type should be an image type Airtable can ingest
+   - content type should be a supported raster image type Airtable can ingest;
+     direct SVG and ICO attachments are unsupported
    - dimensions should be suitable for display, usually square or a clear wordmark
    - if either dimension exceeds the viewer's realistic render size, transform
      it locally before upload; use a 512×512 cap by default
@@ -380,6 +383,10 @@ This fast path should normally avoid full schema audits, AI generation, full CSV
 For transformed attachments, upload the optimized bytes first, identify the
 new attachment id, then PATCH only `Logo` to retain that id. Never clear the
 old attachment before the upload succeeds.
+
+SVG/ICO conversion is always a transformed-attachment workflow. Run the local
+prepare phase first, then upload and attach the converted raster bytes. A public
+SVG/ICO URL is not a valid fast-path attachment payload.
 
 Preservation checks after maintenance:
 
@@ -684,8 +691,9 @@ Examples of field semantics:
 - [`scripts/ptah_airtable_connection.mjs`](../scripts/ptah_airtable_connection.mjs)
   - Ptah Airtable connection test/save helper against `/airtable-admin`
 - [`scripts/optimize_airtable_attachments.py`](../scripts/optimize_airtable_attachments.py)
-  - ImageMagick transform, manifest, upload-first attachment replacement, and
-    unrelated-field, opacity, served-byte, and thumbnail verification
+  - SVG/ICO-to-WebP normalization, ImageMagick transform, manifest, upload-first
+    attachment replacement, and unrelated-field, opacity, served-byte, and
+    thumbnail verification
 - [`scripts/build_contrast_logo_card.py`](../scripts/build_contrast_logo_card.py)
   - deterministic opaque brand-card compositing with dual keylines for white and
     black surface compatibility

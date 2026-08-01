@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 
@@ -106,14 +106,14 @@ def request_json(
     raise RuntimeError(f"Airtable {method} failed: {last_error}")
 
 
-def identify(magick: str, path: Path) -> dict[str, Any]:
+def identify(magick: str, path: Path, frame: int = 0) -> dict[str, Any]:
     result = subprocess.run(
         [
             magick,
             "identify",
             "-format",
             "%m|%w|%h|%[opaque]|%[channels]",
-            f"{path}[0]",
+            f"{path}[{frame}]",
         ],
         check=True,
         capture_output=True,
@@ -129,6 +129,67 @@ def identify(magick: str, path: Path) -> dict[str, Any]:
     }
 
 
+def largest_ico_frame(magick: str, path: Path) -> int:
+    result = subprocess.run(
+        [
+            magick,
+            "identify",
+            "-format",
+            "%p|%w|%h\n",
+            str(path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    frames: list[tuple[int, int, int]] = []
+    for line in result.stdout.splitlines():
+        scene, width, height = line.split("|")
+        frames.append((int(scene), int(width), int(height)))
+    if not frames:
+        raise RuntimeError("ICO source contains no decodable frames")
+    return max(frames, key=lambda frame: (frame[1] * frame[2], frame[1], frame[2]))[0]
+
+
+def rasterize_svg(source: Path, output: Path, target_size: int) -> str:
+    raster_size = max(target_size * 4, 1024)
+    rsvg_convert = shutil.which("rsvg-convert")
+    if rsvg_convert:
+        subprocess.run(
+            [
+                rsvg_convert,
+                "--keep-aspect-ratio",
+                "--width",
+                str(raster_size),
+                "--height",
+                str(raster_size),
+                "--output",
+                str(output),
+                str(source),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        return "rsvg-convert"
+    inkscape = shutil.which("inkscape")
+    if inkscape:
+        subprocess.run(
+            [
+                inkscape,
+                str(source),
+                f"--export-filename={output}",
+                f"--export-width={raster_size}",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        return "inkscape"
+    raise RuntimeError(
+        "SVG source requires local rasterization before upload; install "
+        "rsvg-convert or Inkscape"
+    )
+
+
 def source_bytes(source: str, source_root: Path) -> tuple[bytes, str]:
     if source.startswith(("https://", "http://")):
         return request_bytes(source)
@@ -137,6 +198,18 @@ def source_bytes(source: str, source_root: Path) -> tuple[bytes, str]:
         path = source_root / path
     value = path.read_bytes()
     return value, mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+
+
+def unsupported_source_suffix(source: str, content_type: str) -> str:
+    by_content_type = {
+        "image/svg+xml": ".svg",
+        "image/vnd.microsoft.icon": ".ico",
+        "image/x-icon": ".ico",
+    }
+    if content_type in by_content_type:
+        return by_content_type[content_type]
+    suffix = Path(urlparse(source).path).suffix.casefold()
+    return suffix if suffix in {".svg", ".svgz", ".ico"} else ""
 
 
 def optimize_one(
@@ -158,9 +231,40 @@ def optimize_one(
     source = row[source_field].strip()
     original, content_type = source_bytes(source, source_root)
     source_hash = sha256(original)
-    input_path = temp_dir / f"{slugify(stable_id)}-{source_hash[:12]}.source"
+    source_suffix = unsupported_source_suffix(source, content_type)
+    input_path = temp_dir / (
+        f"{slugify(stable_id)}-{source_hash[:12]}.source{source_suffix}"
+    )
     input_path.write_bytes(original)
-    original_info = identify(magick, input_path)
+    svg_source = source_suffix in {".svg", ".svgz"} or content_type == "image/svg+xml"
+    conversion_tool: str | None = None
+    if svg_source:
+        rasterized_svg = input_path.with_suffix(".rasterized.png")
+        conversion_tool = rasterize_svg(input_path, rasterized_svg, max_dimension)
+        source_format = "SVG"
+        rasterized_info = identify(magick, rasterized_svg)
+        original_info = {
+            **rasterized_info,
+            "format": "SVG",
+            "rasterizedFormat": rasterized_info["format"],
+        }
+        source_selector = f"{rasterized_svg}[0]"
+        source_frame = 0
+    else:
+        original_info = identify(magick, input_path)
+        source_format = str(original_info["format"]).upper()
+        source_frame = (
+            largest_ico_frame(magick, input_path) if source_format == "ICO" else 0
+        )
+        source_selector = f"{input_path}[{source_frame}]"
+        if source_format == "ICO":
+            conversion_tool = "ImageMagick"
+            original_info = identify(magick, input_path, source_frame)
+    conversion_required = source_format in {"SVG", "SVGZ", "ICO"} or content_type in {
+        "image/svg+xml",
+        "image/vnd.microsoft.icon",
+        "image/x-icon",
+    }
     filename = (
         f"{slugify(stable_id)}-{slugify(name)}-{source_hash[:12]}.webp"
     )
@@ -168,7 +272,7 @@ def optimize_one(
     subprocess.run(
         [
             magick,
-            f"{input_path}[0]",
+            source_selector,
             "-auto-orient",
             "-colorspace",
             "sRGB",
@@ -200,6 +304,13 @@ def optimize_one(
         "name": name,
         "source": source,
         "sourceContentType": content_type,
+        "sourceConversion": {
+            "required": conversion_required,
+            "sourceFormat": source_format,
+            "selectedFrame": source_frame,
+            "outputFormat": "WEBP",
+            "tool": conversion_tool,
+        },
         "original": {
             **original_info,
             "bytes": len(original),

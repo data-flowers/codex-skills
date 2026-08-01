@@ -47,6 +47,10 @@ Long capability inventories become unreadable on card surfaces. When the user as
 
 An opaque black card can still lose its edge on black, and a white card can disappear on white. Preserve the official mark and brand/site background, then add an outer white keyline plus an inner black keyline, or an equivalent opposite-color pair. Verify the rendered card and the Airtable-served smallest thumbnail on both pure-white and pure-black surfaces. Do not use a generative redraw when deterministic compositing preserves the real mark.
 
+## SVG and ICO Attachment Sources
+
+Treat SVG and ICO as unsupported final attachments even when they are the best official source asset. Normalize them locally before upload: rasterize SVG at sufficient density, select the largest embedded ICO frame, and encode the result as a reviewed PNG or WebP. Never place the original SVG/ICO URL directly in an Airtable attachment field.
+
 ## Gemini Workflow
 
 When adapting Gemini runners:
