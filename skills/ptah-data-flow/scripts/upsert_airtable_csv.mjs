@@ -233,6 +233,15 @@ function prepareFieldPayload(row, headers, fieldMap) {
       continue;
     }
 
+    if (field.type === "checkbox") {
+      const normalized = trimmed.toLowerCase();
+      if (!["true", "false", "1", "0", "yes", "no"].includes(normalized)) {
+        fail(`Invalid checkbox value for field "${header}" in row Name="${row.Name || ""}": ${value}`);
+      }
+      fields[header] = ["true", "1", "yes"].includes(normalized);
+      continue;
+    }
+
     if (field.type === "multipleAttachments") {
       fields[header] = [{ url: trimmed }];
       continue;

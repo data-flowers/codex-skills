@@ -48,12 +48,16 @@ Rules:
 
 - Treat columns 1-11 as the Ptah-safe core.
 - `Updated At` must be an Airtable `Last modified time` field.
+- CSV carries values, not Airtable computed-field types. A local canonical CSV may contain a blank `Updated At` column for the 12-field shape, but the Airtable upload artifact must omit that column.
+- For a new Airtable table, create or preserve `Updated At` natively before row import, verify its Metadata API type is `lastModifiedTime`, and never substitute a `dateTime` field.
 - `AI Context` is a normal text field.
 - Publish should create or repair the table shape for the user rather than forcing manual Airtable prep.
 - A 12-field CSV can be a valid local publish-shaped artifact before Airtable exists, but that does not automatically mean every enrichment-managed field is final.
 - If the project already has a defined rewrite policy for `Description` or `AI Context`, use that policy or leave the field pending. Bundled rewrite runners and templates count as a defined policy.
 - Do not silently invent a substitute format just to fill the column.
 - Deterministic fact concatenation is acceptable in working notes or helper columns, but not as a silent replacement for final `AI Context`.
+- `Published` is an optional Airtable control field outside the 12-field Ptah contract. Retain it when the existing target or user requires it, write real booleans, and do not silently drop or default its state during a clean-table migration.
+- For compact viewers, shape `Tech Capabilities` as exactly three semicolon-delimited, high-signal labels per row and keep each label around 16 characters or fewer. Use a narrow `Id`, `Tech Capabilities` artifact for maintenance updates.
 
 ## Module boundary
 
@@ -69,7 +73,7 @@ The spreadsheet or workbench surface is an adapter boundary. It is not the cente
 
 ## Category and subcategory rule of thumb
 
-- `Category` should usually represent entity type in this project, such as `Startups & Companies` or `Investors & VCs`.
+- `Category` should usually represent entity type in this project, using compact labels such as `Companies`, `Investors`, or `Open Source`.
 - `Subcategory` should usually represent one normalized business or investor class under that entity type.
 - Raw source taxonomies may be multi-tagged, sparse, or too broad. Normalize them before publish rather than copying them literally.
 - If you widen or rename the category away from the obvious default for the dataset, surface that choice explicitly and record the reason in the progress log.

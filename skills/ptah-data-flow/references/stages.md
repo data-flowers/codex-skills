@@ -142,6 +142,7 @@ Goal:
 Important:
 
 - a local 12-field export is a valid stopping point when no Airtable base or Ptah connection is in scope
+- a CSV import cannot preserve Airtable computed-field types; for a new table, provision and audit native `Updated At` as `lastModifiedTime` before importing an upload artifact that omits `Updated At`
 - do not call a dataset fully publish-ready if enrichment-managed fields are still pending
 - do not call a dataset fully publish-ready if the export still contains raw-source-only `Description` rows, deterministic placeholder `AI Context`, or other known curation gaps
 - default sequencing is to finish the intended curation pass before the first Airtable upload, unless the user explicitly wants a phased publish
@@ -151,6 +152,7 @@ Exit criteria:
 
 - field order and types are confirmed
 - required boundary fields are correct
+- `Updated At` was verified as `lastModifiedTime` both before and after first import into any new table
 - the published data is trustworthy enough to check in Ptah
 
 ## Stage 6: maintenance and repair

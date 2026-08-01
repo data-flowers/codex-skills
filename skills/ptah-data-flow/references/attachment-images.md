@@ -4,9 +4,24 @@ Read this reference when a Ptah dataset contains logos or other Airtable image
 attachments that are oversized, need recurring refreshes, or must be replaced
 without disturbing the rest of a published record.
 
+## Contents
+
+- [Default image policy](#default-image-policy)
+- [Transparency and contrast policy](#transparency-and-contrast-policy)
+- [Dual-background card builder](#dual-background-card-builder)
+- [Bundled helper](#bundled-helper)
+- [Safe Airtable replacement](#safe-airtable-replacement)
+- [Batch sequence and second look](#batch-sequence-and-second-look)
+
 ## Default image policy
 
 - Fetch the official source image retry-safely.
+- Validate the decoded image, not the filename extension alone; an endpoint that
+  ends in `.png` may still return HTML or an error document.
+- Treat logo services such as Logo.dev as optional accelerators. Use them only
+  with a valid key and verify the returned identity. If the service is missing,
+  unauthorized, or returns a placeholder, fall back to the official site asset,
+  published theme, or a relevant wordmark rather than blocking the workflow.
 - Keep originals temporary unless the user explicitly wants an archive.
 - Process the first frame only.
 - Auto-orient from source metadata.
@@ -19,6 +34,37 @@ without disturbing the rest of a published record.
   unchanged.
 - Record original and optimized MIME type, dimensions, bytes, SHA-256, source,
   output path, and compression percentage in a local manifest.
+
+## Transparency and contrast policy
+
+An image is not publishable merely because it downloads and has valid dimensions.
+Logo visibility is a required attachment-quality check.
+
+- Inspect the source and optimized image for an alpha channel, transparent pixels,
+  and near-white foreground pixels.
+- Preview the candidate at realistic card sizes on both a near-white surface and
+  a dark surface. A metadata-only check cannot detect a white-on-white failure.
+- For a white or translucent official mark, prefer an official square icon or
+  colored-background variant. If none exists, composite the official mark onto
+  a background taken from the site's published `theme-color`, documented brand
+  palette, or the mark's own official dark presentation.
+- If no official icon exists, a concise identity wordmark is a valid fallback;
+  do not substitute an unrelated parent-company or generic icon.
+- If an opaque card can still blend into either pure white or pure black, add
+  opposite-color keylines around it. Default to a white outer keyline and black
+  inner keyline so at least one edge remains visible on either surface.
+- Once a contrast background is added, flatten the result and require a fully
+  opaque final image (`opaque=True` or no alpha channel). Use a new content hash
+  and filename so downstream caches cannot retain the transparent predecessor.
+- Run the optimizer with `--require-opaque` for these contrast-backed assets so
+  preparation and reviewed-manifest reuse both fail if transparency returns.
+- After Airtable replacement, download or render the Airtable-served full image
+  and available thumbnails, including the smallest card-sized thumbnail around
+  36 pixels. Repeat the pure-white/pure-black visibility check. Attachment
+  count, dimensions, and MIME type alone are insufficient.
+- Keep general upload artifacts from resending the original transparent URL.
+  The optimized Airtable attachment or another durable contrast-safe asset must
+  remain the authoritative published logo.
 
 Use ImageMagick for the deterministic transform:
 
@@ -35,6 +81,29 @@ magick 'source-image[0]' \
 
 Pass arguments as a subprocess list when scripting so `>` remains ImageMagick
 geometry syntax instead of shell redirection.
+
+## Dual-background card builder
+
+Use [`scripts/build_contrast_logo_card.py`](../scripts/build_contrast_logo_card.py)
+when the official mark or its opaque brand card can lose its edge on an all-white
+or all-black surface. This deterministic helper preserves the supplied mark,
+adds a brand/site background, flattens transparency, and surrounds the card with
+dual white/black keylines.
+
+For a transparent official mark:
+
+```sh
+python3 scripts/build_contrast_logo_card.py \
+  --input ./logo.png \
+  --output ./logo-contrast.webp \
+  --background '#f5572a' \
+  --qa-output ./logo-contrast-qa.png
+```
+
+For an existing square brand card, add `--input-mode card`. The QA image includes
+full-size and 36-pixel previews on white and black panels. Inspect both, then run
+the attachment optimizer with `--require-opaque`. Do not use this helper to
+invent a mark or replace a real logo with a generic glyph.
 
 ## Bundled helper
 
@@ -105,7 +174,9 @@ Use this order:
 5. Verify the pilot's attachment count and all unrelated fields.
 6. Run the remaining attachment-only replacements.
 7. Re-export or re-read the full view and verify record count, expected logo
-   count, one attachment per intended row, maximum dimensions, and preservation.
+   count, one attachment per intended row, maximum dimensions, opacity/contrast
+   at full and smallest-thumbnail sizes on pure-white and pure-black surfaces,
+   and preservation.
 8. Record the manifest, verification report, policy, and completion status in
    the progress log.
 

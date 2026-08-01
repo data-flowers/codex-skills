@@ -146,6 +146,9 @@ function auditTable(table) {
     }
 
     if (expected.requiredType && field.type !== expected.requiredType) {
+      const updatedAtGuidance = expected.name === "Updated At"
+        ? " CSV import cannot create or preserve Last modified time. For a new table, provision this field natively in Airtable before row import, omit it from the upload artifact, and rerun the audit."
+        : "";
       issues.push({
         code: "field_type_mismatch",
         field: expected.name,
@@ -153,7 +156,7 @@ function auditTable(table) {
         actualType: field.type,
         repairable: false,
         targetType: expected.requiredType,
-        message: `Field "${field.name}" is type "${field.type}". Expected: ${expected.requiredType}.`,
+        message: `Field "${field.name}" is type "${field.type}". Expected: ${expected.requiredType}.${updatedAtGuidance}`,
       });
     }
   }

@@ -108,16 +108,24 @@ def request_json(
 
 def identify(magick: str, path: Path) -> dict[str, Any]:
     result = subprocess.run(
-        [magick, "identify", "-format", "%m|%w|%h", f"{path}[0]"],
+        [
+            magick,
+            "identify",
+            "-format",
+            "%m|%w|%h|%[opaque]|%[channels]",
+            f"{path}[0]",
+        ],
         check=True,
         capture_output=True,
         text=True,
     )
-    image_format, width, height = result.stdout.strip().split("|")
+    image_format, width, height, opaque, channels = result.stdout.strip().split("|")
     return {
         "format": image_format,
         "width": int(width),
         "height": int(height),
+        "opaque": opaque.casefold() == "true",
+        "channels": channels.strip(),
     }
 
 
@@ -143,6 +151,7 @@ def optimize_one(
     magick: str,
     max_dimension: int,
     quality: int,
+    require_opaque: bool,
 ) -> dict[str, Any]:
     stable_id = row[id_field].strip()
     name = row.get(name_field, "").strip() or stable_id
@@ -181,6 +190,11 @@ def optimize_one(
         raise RuntimeError("ImageMagick output is not WebP")
     if max(optimized_info["width"], optimized_info["height"]) > max_dimension:
         raise RuntimeError("ImageMagick output exceeds the configured maximum")
+    if require_opaque and not optimized_info["opaque"]:
+        raise RuntimeError(
+            "Optimized image is not fully opaque; composite the mark onto a "
+            "contrast-safe background before publishing"
+        )
     return {
         "id": stable_id,
         "name": name,
@@ -228,6 +242,7 @@ def prepare(args: argparse.Namespace, rows: list[dict[str, str]]) -> dict[str, A
                     magick=args.magick,
                     max_dimension=args.max_dimension,
                     quality=args.quality,
+                    require_opaque=args.require_opaque,
                 ): row
                 for row in targets
             }
@@ -267,6 +282,7 @@ def prepare(args: argparse.Namespace, rows: list[dict[str, str]]) -> dict[str, A
             "stripMetadata": True,
             "preserveAspectRatio": True,
             "upscale": False,
+            "requireOpaque": args.require_opaque,
         },
         "sourceCount": len(targets),
         "processedCount": len(results),
@@ -316,6 +332,7 @@ def reuse_manifest(
         if (
             info["format"].upper() != "WEBP"
             or max(info["width"], info["height"]) > args.max_dimension
+            or (args.require_opaque and not info["opaque"])
         ):
             raise RuntimeError(f"Manifest image check failed: {path}")
     return manifest
@@ -384,6 +401,52 @@ def is_current(
     )
 
 
+def verify_served_attachment(
+    attachment: dict[str, Any],
+    image: dict[str, Any],
+    *,
+    magick: str,
+    require_opaque: bool,
+) -> dict[str, Any]:
+    url = str(attachment.get("url") or "")
+    if not url:
+        raise RuntimeError("Airtable attachment is missing its served URL")
+    value, content_type = request_bytes(url)
+    served_hash = sha256(value)
+    optimized = image["optimized"]
+    if served_hash != optimized["sha256"]:
+        raise RuntimeError(
+            "Airtable-served attachment bytes do not match the reviewed "
+            f"optimized asset for {image['id']}"
+        )
+    result = {
+        "bytes": len(value),
+        "sha256": served_hash,
+        "contentType": content_type,
+        "matchesReviewedAsset": True,
+    }
+    thumbnail = (attachment.get("thumbnails") or {}).get("large") or {}
+    thumbnail_url = str(thumbnail.get("url") or "")
+    if thumbnail_url:
+        thumbnail_value, thumbnail_type = request_bytes(thumbnail_url)
+        with tempfile.TemporaryDirectory(prefix="ptah-thumbnail-") as temp_name:
+            thumbnail_path = Path(temp_name) / "thumbnail"
+            thumbnail_path.write_bytes(thumbnail_value)
+            thumbnail_info = identify(magick, thumbnail_path)
+        if require_opaque and not thumbnail_info["opaque"]:
+            raise RuntimeError(
+                "Airtable-served thumbnail retained transparency for a "
+                f"contrast-backed asset: {image['id']}"
+            )
+        result["thumbnail"] = {
+            **thumbnail_info,
+            "bytes": len(thumbnail_value),
+            "sha256": sha256(thumbnail_value),
+            "contentType": thumbnail_type,
+        }
+    return result
+
+
 def replace_one(
     args: argparse.Namespace,
     token: str,
@@ -441,12 +504,19 @@ def replace_one(
         )
     if snapshot(args, record) != snapshot(args, final):
         raise RuntimeError("An unrelated Airtable field changed")
+    served = verify_served_attachment(
+        final_attachments[0],
+        image,
+        magick=args.magick,
+        require_opaque=args.require_opaque,
+    )
     return {
         "id": image["id"],
         "name": image["name"],
         "airtableRecordId": record_id,
         "before": [signature(item) for item in before],
         "after": [signature(item) for item in final_attachments],
+        "served": served,
         "status": "replaced",
     }
 
@@ -491,6 +561,12 @@ def sync(
             record.get("fields", {}).get(args.attachment_field) or []
         )
         if not args.force and is_current(args, attachments, image):
+            served = verify_served_attachment(
+                attachments[0],
+                image,
+                magick=args.magick,
+                require_opaque=args.require_opaque,
+            )
             results.append(
                 {
                     "id": image["id"],
@@ -498,6 +574,7 @@ def sync(
                     "airtableRecordId": record["id"],
                     "before": [signature(item) for item in attachments],
                     "after": [signature(item) for item in attachments],
+                    "served": served,
                     "status": "already-current",
                 }
             )
@@ -597,6 +674,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--attachment-field", default="Logo")
     parser.add_argument("--max-dimension", type=int, default=512)
     parser.add_argument("--quality", type=int, default=84)
+    parser.add_argument(
+        "--require-opaque",
+        action="store_true",
+        help=(
+            "Fail preparation or manifest reuse when an optimized image retains "
+            "transparency; use for contrast-backed white or translucent marks."
+        ),
+    )
     parser.add_argument("--workers", type=int, default=6)
     parser.add_argument("--magick", default=shutil.which("magick") or "")
     parser.add_argument("--reuse-manifest", action="store_true")

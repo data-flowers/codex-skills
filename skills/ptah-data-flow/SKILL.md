@@ -1,6 +1,6 @@
 ---
 name: ptah-data-flow
-description: Use when a user needs to turn a rough list, folder of raw data, CSV, HTML export, nested list, markdown, PDF, Airtable base, or broken Ptah publish flow into a clean Ptah-ready dataset, including compacting and safely replacing logo or image attachments. This skill treats Airtable as storage and publish plumbing, not the main editing surface.
+description: Use when a user needs to turn a rough list, appended seed file, folder of raw data, CSV, HTML export, nested list, markdown, PDF, event-heavy Airtable base, or broken Ptah publish flow into a clean Ptah-ready dataset. Also use for published-state maintenance, compact taxonomy or capability labels, model-backed curation, and contrast-safe logo or image attachment repair. This skill treats Airtable as storage and publish plumbing, not the main editing surface.
 ---
 # ptah-data-flow
 
@@ -33,8 +33,10 @@ This skill is for running local OODA loops around that workflow. It should help 
 - If the source is website-backed and some rows come back sparse or blocked, record those rows explicitly and support a targeted refresh pass later instead of forcing a full rebuild.
 - After a network-context change such as VPN, proxy, or auth improvement, prefer a targeted re-fetch of sparse rows before declaring the source permanently weak.
 - For post-publish maintenance, prefer the smallest safe delta: detect missing, malformed, or stale rows; generate only those rows; patch only the intended field(s); then re-export and verify the remote result.
-- For attachment-only logo fixes, use the fast path in `references/airtable-boundary.md`: find the live record id, choose the official stable image URL, compact oversized assets first, PATCH only `Logo`, and verify attachment metadata.
+- For attachment-only logo fixes, use the fast path in `references/airtable-boundary.md`: find the live record id, choose the official stable image URL, compact oversized assets first, PATCH only `Logo`, and verify metadata plus the Airtable-served image or thumbnail.
 - When source images may be large or a recurring attachment refresh is needed, read `references/attachment-images.md` and adapt or run `scripts/optimize_airtable_attachments.py`. Default to a 512×512 maximum, aspect-preserving WebP, stripped metadata, a local manifest, upload-first replacement, and preservation checks.
+- Treat logo visibility as part of attachment validity, not a cosmetic afterthought. Detect transparent or near-white marks, preview every candidate at full and 36-pixel thumbnail sizes on both white and black surfaces, and composite white/translucent marks onto an official brand or site-theme background before publishing. When either card edge can disappear, use `scripts/build_contrast_logo_card.py` to add dual white/black keylines. Require a fully opaque final asset and verify the Airtable-served bytes and thumbnails—not only the local source and attachment metadata.
+- Treat model-backed curation as an external data boundary. Require an explicitly requested or approved model pass, send only the minimum public-facing fields needed by the prompt, and exclude internal provenance, confidence notes, private contact data, and unrelated columns by default.
 - Never use a full-record Airtable update for a single-field maintenance job. Use record-scoped PATCH payloads that include only the field being changed, so attachment fields such as `Logo` are preserved.
 - Do not stop at a local draft if the next bounded transform is obvious and all required inputs, credentials, and tools are already available. Continue autonomously.
 - If the next step is blocked by a missing external credential, permission, or target identifier, say that explicitly and ask for it directly instead of acting finished.
@@ -162,6 +164,7 @@ Second look:
 
 - inspect final label distribution
 - check whether labels are too coarse, too fragmented, too long, or too sparse
+- check whether labels fit the real viewer without truncation; prefer compact display labels around 17 characters or fewer when the surface is narrow, while keeping semantic meaning stable
 - check whether subcategory names merely restate category names
 - revise once if the result still looks weak
 
@@ -179,6 +182,7 @@ Steps:
 - check required external credentials before starting model-backed enrich or rewrite work
 - for Gemini-backed batches, run a small sample first, then use a quota-safe full-run cadence: prefer `--workers 5` for normal paid Gemini accounts, but fall back to `--workers 1`, `--request-delay-seconds 4.5` or slower if the account is unknown, free-tier, downgraded, newly throttled, or returns 429/quota errors; keep cache enabled and avoid `--force` unless intentionally regenerating
 - if `Description` or `AI Context` has a defined rewrite policy, use it; bundled rewrite runners and templates count as a defined policy
+- when `Tech Capabilities` must fit a compact card, default to exactly three semicolon-delimited, high-signal labels per row and keep each label around 16 characters or fewer; preserve capability meaning rather than retaining every implementation detail
 - do not substitute a deterministic fact string or source-note concatenation into final `AI Context` just to fill the column
 - if the intended rewrite path is not ready yet, leave the field pending rather than inventing a placeholder just to fill the schema
 - if the required key is missing but the intended rewrite path is otherwise clear, stop there, record the blocker, and ask the user for the missing key rather than pretending the draft is final
@@ -200,6 +204,8 @@ Required behavior:
 - expect practical schema drift from the nominal 12-field contract; common differences include numeric `Id`, attachment-based `Logo`, extra boolean publish flags, and text fields that are narrower than the ideal local draft
 - treat Airtable schema audit as its own blocker check: exact field names, hidden BOM/whitespace pollution, missing required fields, and required boundary field types
 - treat `Updated At` as a hard requirement: it must be an Airtable `lastModifiedTime` field before the boundary is considered clean
+- when creating a new table, provision and verify `Updated At` as a native Airtable `Last modified time` field before importing any rows; CSV import cannot preserve or create computed Airtable field types
+- exclude `Updated At` from every Airtable row-import or upsert artifact and let Airtable populate it; never accept `dateTime`, imported timestamps, or a same-named date field as a fallback
 - when a blocker is found and the helper can fix it, use the bundled Airtable schema mutation helper, then inspect again
 - treat boundary failures as publish problems, not as reasons to edit the base blindly
 - do not stop on non-blocking Airtable cleanup unless the user explicitly asks for schema cleanup, but do stop on any `Updated At` mismatch until it is repaired or explicitly escalated as a manual blocker
@@ -217,6 +223,9 @@ Required behavior:
 - if Ptah connection setup is in scope, inspect Airtable first, resolve the real table and view names, test the Ptah connection, and only then save it
 - if Airtable URL plus PAT are already available, do not ask the user to explain Airtable ids or manually provide table/view names; resolve them from inspect
 - if the target table already contains sample or legacy rows, treat append-versus-replace as an explicit decision unless the user already authorized wiping them
+- if the source table is polluted with event or unrelated custom fields and the user wants a clean company/entity map, prefer a clean sibling table containing the 12-field contract plus explicitly retained control fields such as `Published`; leave the source table untouched unless deletion was explicitly requested
+- for a clean sibling table, duplicate a correctly typed structure when possible; otherwise create `Updated At` in the Airtable UI as `Last modified time`, audit the empty table, then import the upload artifact and audit again
+- when `Published` exists or the user requests a publish state, treat it as an explicit control field outside the 12-field contract, set it deliberately, and verify it after every relevant update
 
 Second look:
 
@@ -240,11 +249,14 @@ Examples:
 Incremental maintenance rule:
 
 - if the user says a new row was added or one field needs refreshing, do not regenerate the whole dataset by default
+- if a seed file gained entries, diff the raw seeds against preserved source aliases, canonicalize only the additions, dedupe them against existing entities, assign stable new ids, and publish only the resulting delta before running a full-count verification
 - re-export the current remote target first
 - identify target rows by record id, missing target field, stale hash, or explicit user-named entity
 - generate only those rows, using existing caches where source fields did not change
 - patch only the target field, never untouched fields such as `Logo`
 - for logo-only work, prefer a direct record-scoped attachment PATCH over regenerating or re-uploading a CSV
+- for logo-only work, reject white-on-transparent and otherwise low-contrast candidates unless the downstream card background is known to make them visible; preserve the official mark by placing it on a verified brand/site-theme color, or use a clearly relevant wordmark fallback when no official icon exists
+- when a logo must survive both pure-white and pure-black surfaces, add dual opposite-color keylines around the opaque brand card and verify both the Airtable-served full file and the smallest available thumbnail before calling it fixed
 - for a batch of logo or image replacements, create a local optimized-asset manifest first, pilot the largest source, then use the bundled attachment helper or an adapted dataset-scoped copy
 - omit attachment fields from general-purpose Airtable upload artifacts after attachment optimization, unless that upload intentionally owns those attachments
 - re-export after patching and verify both content quality and preservation of unrelated fields for the touched rows
@@ -261,7 +273,7 @@ Routing rule:
 Use these as semantic guides, not rigid formulas:
 
 - `Category`: entity type
-  - examples: `Startups & Companies`, `Investors & VCs`
+  - examples: `Companies`, `Investors`, `Open Source`
 - `Subcategory`: one normalized class under that entity type
   - not a raw multi-tag dump
   - for startups, usually a defensible market vertical or industry
@@ -271,7 +283,7 @@ Use these as semantic guides, not rigid formulas:
 - `Description`: short display copy for the card surface; do not waste it repeating the exact identity already visible in `Name`
 - `Year Founded`: publish-friendly founded date value, shaped to the boundary contract
 - `Email`: public contact email
-- `Tech Capabilities`: optional capability field if there is a clean and defensible source
+- `Tech Capabilities`: concise, defensible capability labels; for compact cards, prefer exactly three semicolon-delimited labels around 16 characters or fewer each
 - `Updated At`: boundary-managed last modified field, not a freeform date cell
 - `AI Context`: richer grounded context for downstream AI use
 

@@ -5,6 +5,18 @@ Use this reference when the project needs model-backed rewrite passes for fields
 - `Description`
 - `AI Context`
 
+## Contents
+
+- [Bundled templates](#bundled-templates)
+- [Why copy and adapt](#why-copy-and-adapt)
+- [Before running a copied template](#before-running-a-copied-template)
+- [External transmission boundary](#external-transmission-boundary)
+- [Gemini rate discipline](#gemini-rate-discipline)
+- [Description runner](#description-runner)
+- [AI Context runner](#ai-context-runner)
+- [Default execution pattern](#default-execution-pattern)
+- [Incremental maintenance pattern](#incremental-maintenance-pattern)
+
 ## Bundled templates
 
 The skill bundles three reusable Python templates:
@@ -55,6 +67,24 @@ Verify:
 - cache path is dataset-scoped
 - worker count and request delay fit the Gemini quota before the full run
 - the API key is discovered without printing the secret value in terminal output
+
+## External transmission boundary
+
+Treat every model request as transmission to an external service.
+
+- Run only when the user explicitly requests or approves the model-backed pass.
+- Require an explicit `--context-columns` selection; never default to every CSV
+  column merely because it is available.
+- Prefer public-facing prompt fields such as `Name`, `Category`, `Subcategory`,
+  `Website`, `Description`, `Year Founded`, and `Tech Capabilities`.
+- Exclude internal seed aliases, confidence notes, review comments, private
+  contact data, raw evidence collections, credentials, and unrelated helper
+  columns unless they are essential and separately authorized.
+- Keep allowed links equally narrow; the public website is usually enough for a
+  grounded rewrite when the working row already contains curated facts.
+- If execution is blocked because the payload is too broad, reduce it to the
+  minimum necessary fields. Do not route the same sensitive payload through a
+  different command or service.
 
 ## Gemini rate discipline
 
@@ -146,6 +176,7 @@ For most datasets:
 6. set a quota-safe full-run cadence
 7. only then run the full batch
 8. write a partial upload artifact keyed by stable `Id` when pushing only the generated field back to Airtable
+9. if the user also requested publication, include `Published` only as an explicit boolean control field and verify both the generated field and publish state remotely
 
 The bundled templates already support:
 

@@ -2,6 +2,29 @@
 
 Use this reference when publish, schema, permissions, or connection repair is involved.
 
+## Contents
+
+- [Airtable's role](#airtables-role)
+- [Normal ownership flow](#normal-ownership-flow)
+- [The current downstream contract](#the-current-downstream-contract)
+- [Local publish artifact vs upload artifact](#local-publish-artifact-vs-upload-artifact)
+- [New-table Updated At provisioning](#new-table-updated-at-provisioning)
+- [Clean sibling-table migration](#clean-sibling-table-migration)
+- [What to inspect first](#what-to-inspect-first)
+- [Generic schema audit](#generic-schema-audit)
+- [Incremental Airtable maintenance](#incremental-airtable-maintenance)
+- [What to ask for before publish](#what-to-ask-for-before-publish)
+- [Update behavior for existing Airtable tables](#update-behavior-for-existing-airtable-tables)
+- [Post-upload verification](#post-upload-verification)
+- [Share step for Ptah connection](#share-step-for-ptah-connection)
+- [Ptah Airtable connection API](#ptah-airtable-connection-api)
+- [PAT requirements](#pat-requirements)
+- [URL and identifier rules](#url-and-identifier-rules)
+- [Common permission failures](#common-permission-failures)
+- [Field-type expectations](#field-type-expectations)
+- [Boundary workflow](#boundary-workflow)
+- [Bundled boundary tools](#bundled-boundary-tools)
+
 ## Airtable's role
 
 In this workflow, Airtable is:
@@ -60,6 +83,8 @@ Do not assume names or types. Inspect the real base.
 
 A clean local 12-field Ptah CSV is the canonical publish shape, but it is not always the safest API upload file.
 
+CSV is a value transport, not an Airtable schema transport. It cannot encode or preserve computed field types such as `lastModifiedTime`.
+
 After inspecting the Airtable schema, create a separate upload artifact when needed. This artifact may:
 
 - omit fields that are blank and incompatible with the remote type, such as empty attachment fields
@@ -68,6 +93,53 @@ After inspecting the Airtable schema, create a separate upload artifact when nee
 - include only a stable merge key plus one enriched field for partial updates, such as `Id` and `AI Context`
 
 Record both artifacts separately in the progress log. Do not treat an upload-safe subset as a replacement for the canonical local Ptah artifact.
+
+For Airtable row import, omitting `Updated At` is mandatory. The local canonical artifact may retain the blank column for the 12-field contract, but no GUI import or API upsert should use that column to create or populate the Airtable field.
+
+## New-table `Updated At` provisioning
+
+Use this order whenever creating a new table, including a clean sibling table:
+
+1. Prefer duplicating a table or template whose `Updated At` field is already a native Airtable `Last modified time` field. Remove unwanted fields only after confirming the duplicate preserved the type.
+2. If no correctly typed structure exists, create the table and add `Updated At` in the Airtable UI as **Last modified time**. Configure its watched fields according to the table's intended update semantics.
+3. Run the schema audit on the empty table and require the Metadata API to report `lastModifiedTime`.
+4. Derive an upload artifact that omits `Updated At`.
+5. Import or upsert the rows.
+6. Run the schema audit again and verify `Updated At` is still `lastModifiedTime`.
+
+Do not:
+
+- import an `Updated At` CSV column and assume Airtable will infer `Last modified time`
+- accept a same-named `dateTime`, text, formula, or imported timestamp field
+- upload timestamp values into `Updated At`
+- declare the boundary clean before both audits pass
+
+If Airtable's Metadata API rejects creation or conversion of `lastModifiedTime`, stop before row import and require UI provisioning. A `dateTime` fallback is a schema defect, not a partial success.
+
+## Clean sibling-table migration
+
+Use this when an existing Airtable table mixes the desired company/entity rows
+with event, RSVP, location, or other unrelated fields and the user asks for a
+clean map table.
+
+1. Inspect the source table and identify the 12 contract fields plus any control
+   fields the user explicitly wants retained, commonly `Published`.
+2. Create the clean structure by duplicating a correctly typed table when
+   possible. Otherwise create the fields in the Airtable UI and provision
+   `Updated At` as **Last modified time** before importing rows. Do not delete or
+   destructively reshape the source table unless the user explicitly requests it.
+3. Audit the empty table and require `Updated At` to report
+   `lastModifiedTime`; do not continue with a `dateTime` fallback.
+4. Keep `Published` as a checkbox and decide its initial state explicitly; never
+   lose it merely because it sits outside the core contract.
+5. Derive and import an upload artifact that omits `Updated At`, then upload
+   optimized logos separately so later general-purpose CSV updates can omit
+   `Logo`.
+6. Audit again, then verify row ids, record count, control-field state, AI
+   Context completeness, and one intended logo attachment per row.
+7. Record the new table and view ids and names in the progress log. Treat that
+   clean table as the active boundary; keep the original table recorded as
+   untouched or superseded, not silently forgotten.
 
 ## What to inspect first
 
@@ -159,6 +231,7 @@ Practical Airtable limitation:
 - Airtable may also reject direct type conversion from `dateTime` to `lastModifiedTime`
 - if you try a rename-plus-create repair, make the operation rollback-safe and verify the final field names afterward
 - if API repair is rejected, tell the user to repair `Updated At` in the Airtable UI and rerun the schema audit afterward
+- for a not-yet-imported table, require that UI repair before importing rows; do not let CSV import create a temporary `dateTime` field
 
 If something still cannot be repaired by the helper and it is actually blocking the downstream flow, call it out plainly as remaining manual repair.
 
@@ -217,6 +290,19 @@ Default sequence:
 6. PATCH Airtable by record id with only the intended changed field(s)
 7. re-export Airtable and verify the remote values
 
+When a local seed list gained entries:
+
+1. diff the current raw seeds against the source aliases preserved in the
+   canonical dataset
+2. research and canonicalize only unseen seeds
+3. dedupe new candidates against existing websites, names, and known aliases
+4. preserve all seed aliases when multiple seeds resolve to one entity
+5. assign stable ids only to truly new entities
+6. generate a new-row upload artifact and upload only that delta
+7. handle new logos as a separate attachment delta
+8. re-read the full view and verify total ids, published state, AI Context, and
+   logo counts
+
 For single-field updates, the PATCH payload must be narrow:
 
 ```json
@@ -256,6 +342,9 @@ optimized Airtable storage is part of the request, read
    - dimensions should be suitable for display, usually square or a clear wordmark
    - if either dimension exceeds the viewer's realistic render size, transform
      it locally before upload; use a 512×512 cap by default
+   - inspect alpha and contrast on both light and dark card surfaces; for a
+     white/translucent mark, composite it onto an official brand or site-theme
+     background and run the optimizer with `--require-opaque`
 5. PATCH only the `Logo` field:
 
 ```json
@@ -280,6 +369,9 @@ optimized Airtable storage is part of the request, read
    - `Logo` attachment count is exactly what was intended
    - attachment `type`, `size`, `width`, `height`, URL, and thumbnails are present when available
    - untouched fields such as `Name`, `Website`, `AI Context`, and `Published` still have expected values
+   - download the Airtable-served full image and generated thumbnail; require
+     the full-file hash to match the reviewed asset and the thumbnail to remain
+     opaque when a contrast background was required
 7. re-export the view only after the successful patch if the local export is used as a handoff artifact
 8. update the progress log with the record id, source image URL, attachment count, dimensions, and refreshed export path
 
@@ -363,6 +455,13 @@ Full replacement is allowed only when one of these is true:
 - record identity does not matter and this is recorded in the progress log
 
 For taxonomy-only updates, preserve Airtable record identity when possible. Patch `Category`, `Subcategory`, and any regenerated text fields against a stable key such as `Id`; do not resend attachment, multiselect, or Airtable-managed fields unless they actually need to change.
+
+For capability-only updates on compact viewers, derive an `Id`, `Tech Capabilities` artifact. Prefer exactly three high-signal semicolon-delimited labels around 16 characters or fewer each, PATCH only those fields, and verify publish state, AI Context, attachments, and record identity afterward.
+
+For publish-state changes, PATCH only the stable key and `Published`, using a
+real boolean. If the same bounded operation also fills `AI Context`, an
+`Id`, `AI Context`, `Published` artifact is acceptable; verify both fields and
+confirm that logos and record identity remain unchanged.
 
 If rows must be removed, prefer a targeted delete of only rows absent from the trusted source over deleting every record and reuploading the survivors.
 
@@ -537,6 +636,8 @@ Examples of field semantics:
 - `Subcategory`: usually a text-like field in this workflow, but confirm
 - `Updated At`: must be an Airtable `lastModifiedTime` field, not a normal text or date field
 - `AI Context`: normal long text is acceptable
+- `Published`: when present, use an Airtable checkbox and send JSON booleans,
+  not the strings `"true"` or `"false"`
 
 ## Boundary workflow
 
@@ -550,6 +651,7 @@ Examples of field semantics:
 - confirm field types
 - confirm required boundary fields
 - confirm base/table/view target
+- for a new table, audit native `Updated At` before importing an upload artifact that omits it
 
 ### During repair
 
@@ -567,6 +669,7 @@ Examples of field semantics:
 
 - verify record count
 - verify a few rows against the working dataset
+- rerun the schema audit and confirm `Updated At` remains `lastModifiedTime`
 - only then debug Ptah viewer behavior
 
 ## Bundled boundary tools
@@ -576,11 +679,15 @@ Examples of field semantics:
 - [`scripts/audit_airtable_schema.mjs`](../scripts/audit_airtable_schema.mjs)
   - contract-aware Airtable schema audit
 - [`scripts/upsert_airtable_csv.mjs`](../scripts/upsert_airtable_csv.mjs)
-  - generic dry-run or execute path for batched CSV upserts
+  - generic dry-run or execute path for batched CSV upserts, including typed
+    checkbox conversion for optional control fields such as `Published`
 - [`scripts/ptah_airtable_connection.mjs`](../scripts/ptah_airtable_connection.mjs)
   - Ptah Airtable connection test/save helper against `/airtable-admin`
 - [`scripts/optimize_airtable_attachments.py`](../scripts/optimize_airtable_attachments.py)
   - ImageMagick transform, manifest, upload-first attachment replacement, and
-    unrelated-field preservation verification
+    unrelated-field, opacity, served-byte, and thumbnail verification
+- [`scripts/build_contrast_logo_card.py`](../scripts/build_contrast_logo_card.py)
+  - deterministic opaque brand-card compositing with dual keylines for white and
+    black surface compatibility
 
 Use these bundled tools by default. Do not go looking for other Airtable helpers elsewhere in the user's workspace unless the user explicitly points you to one.

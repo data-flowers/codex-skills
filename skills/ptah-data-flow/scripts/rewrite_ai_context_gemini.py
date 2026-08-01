@@ -231,6 +231,19 @@ def main() -> int:
             row[args.target_column] = ""
 
     requested_context_columns = parse_csv_list(args.context_columns)
+    if not requested_context_columns:
+        raise SystemExit(
+            "--context-columns is required; explicitly select the minimum "
+            "public-facing fields needed for the external model request."
+        )
+    missing_context_columns = [
+        column for column in requested_context_columns if column not in fieldnames
+    ]
+    if missing_context_columns:
+        raise SystemExit(
+            "Context columns not found in input: "
+            + ", ".join(missing_context_columns)
+        )
     requested_link_columns = parse_csv_list(args.link_columns)
     context_columns = choose_context_columns(fieldnames, requested_context_columns)
     link_columns = choose_context_columns(fieldnames, requested_link_columns)

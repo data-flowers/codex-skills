@@ -2,6 +2,14 @@
 
 Use this reference whenever `Category` or `Subcategory` is under discussion.
 
+## Contents
+
+- [Default model](#default-model)
+- [Required sequence](#required-sequence)
+- [Shape constraints](#shape-constraints)
+- [Common patterns](#common-patterns)
+- [What good looks like](#what-good-looks-like)
+
 ## Default model
 
 Unless the user has a strong and defensible alternative, default to:
@@ -11,10 +19,10 @@ Unless the user has a strong and defensible alternative, default to:
 
 Examples:
 
-- `Category = Startups & Companies`
+- `Category = Companies`
 - `Subcategory = DevTools & Cloud`
 
-- `Category = Investors & VCs`
+- `Category = Investors`
 - `Subcategory = Venture Capital`
 
 This default is strong because it survives onboarding, maintenance, and mixed-source datasets better than raw source tags.
@@ -95,6 +103,7 @@ After assigning or proposing labels, review:
 - overly broad buckets
 - tiny buckets that should merge
 - long labels that can be compressed
+- rendered label fit on the actual viewer; when the surface truncates around 17 characters, shorten both `Category` and `Subcategory` without changing their semantic role
 - maximum `Subcategory` label length; revise any label longer than 24 characters unless the user explicitly requires exact source wording
 - noisy labels that should normalize
 - category/subcategory complementarity: the subcategory should add a useful distinction inside the category, not restate it
@@ -112,6 +121,7 @@ When the user asks for a "balanced" or "meaningful" taxonomy, enforce these chec
 - Every final category has more than 5 rows.
 - Every final subcategory has more than 5 rows.
 - Every final `Subcategory` label is 24 characters or fewer, including spaces and punctuation, unless the user explicitly requires exact source wording. Use short natural labels such as `Meetings & Events`; never rely on the viewer to truncate a longer label.
+- For compact card or filter surfaces, prefer both `Category` and `Subcategory` labels at 17 characters or fewer. Treat visible ellipsis as a taxonomy quality defect, not acceptable presentation. Examples: `Companies`, `Open Source`, `Publishers`, `Dev Workspaces`.
 - Subcategory names complement category names. Good: `Category = STEM & Technical Learning`, `Subcategory = Math & Logic Practice`. Weak: `Category = Math Learning`, `Subcategory = Math Games & Practice`.
 
 If the data cannot satisfy these constraints without absurd labels, merge sparse buckets upward and record the tradeoff in the progress log.
@@ -142,6 +152,13 @@ Use:
 - one normalized class for `Subcategory`
 
 and derive those from the full dataset plus text context.
+
+### Pattern: labels truncate in the viewer
+
+Shorten the display vocabulary while preserving the existing assignments and
+parent-child meaning. Update the canonical working dataset first, derive an
+`Id`, `Category`, `Subcategory` maintenance artifact, PATCH only those fields,
+and verify that publish state, AI Context, and attachments remain unchanged.
 
 ### Pattern: startups with weak or missing industry fields
 
