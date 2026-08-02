@@ -47,6 +47,10 @@ Long capability inventories become unreadable on card surfaces. When the user as
 
 An opaque black card can still lose its edge on black, and a white card can disappear on white. Preserve the official mark and brand/site background, then add an outer white keyline plus an inner black keyline, or an equivalent opposite-color pair. Verify the rendered card and the Airtable-served smallest thumbnail on both pure-white and pure-black surfaces. Do not use a generative redraw when deterministic compositing preserves the real mark.
 
+## Official Asset Discovery Before Fallbacks
+
+A root favicon may be only the most obvious asset, not the best available official mark. When logo work is explicitly requested, inventory HTML icon links, manifests, metadata, CSS/JS references, and plausible same-origin asset directories and sibling filenames before using a third-party service or creating anything. Fetch and visually compare candidates because filenames and directories can contain unrelated UI glyphs. If no official candidate is suitable, leave the logo blank by default; require explicit user approval for a clearly labeled non-official wordmark or generic fallback.
+
 ## SVG and ICO Attachment Sources
 
 Treat SVG and ICO as unsupported final attachments even when they are the best official source asset. Normalize them locally before upload. Default to a 256-pixel final maximum, rasterize SVG at 2× the intended output with a 1024-pixel intermediate cap, and select the smallest ICO frame that meets the target or otherwise the largest available frame without upscaling. Use 128 pixels for simple small-card icons when sufficient; reserve the 512-pixel ceiling for verified high-density or detailed-logo needs. Encode the result as a reviewed PNG or WebP, and never place the original SVG/ICO URL directly in an Airtable attachment field.

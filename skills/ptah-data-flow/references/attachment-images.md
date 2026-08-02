@@ -8,6 +8,7 @@ some rows have blank attachments.
 ## Contents
 
 - [Default image policy](#default-image-policy)
+- [Official asset discovery](#official-asset-discovery)
 - [Unsupported source formats](#unsupported-source-formats)
 - [Transparency and contrast policy](#transparency-and-contrast-policy)
 - [Dual-background card builder](#dual-background-card-builder)
@@ -41,6 +42,35 @@ some rows have blank attachments.
   unchanged.
 - Record original and optimized MIME type, dimensions, bytes, SHA-256, source,
   output path, and compression percentage in a local manifest.
+
+## Official asset discovery
+
+Do not treat the first visible favicon or a common root path as the complete
+asset inventory. Before generating a fallback or using a third-party logo
+service:
+
+1. Inspect the homepage and relevant product/about pages for `rel="icon"`,
+   `apple-touch-icon`, web-manifest, structured-data, and brand/logo metadata.
+2. Inspect same-origin HTML, CSS, and JavaScript references for explicit logo,
+   icon, mark, favicon, app-icon, and wordmark assets.
+3. Check reasonable first-party asset locations and siblings suggested by the
+   site's own paths, including directories such as `/assets/logo/`, `/icons/`,
+   and `/images/`, plus alternate raster or animated formats. Candidate names
+   can include `logo`, `favicon`, `mark`, `icon`, and product-specific symbols.
+4. Use retry-safe `HEAD` or `GET` requests, but validate decoded content rather
+   than trusting status, suffix, or MIME headers. Record every candidate URL and
+   result so a hidden but usable official asset is not silently skipped.
+5. Render and compare every plausible candidate at full and card-thumbnail size.
+   A file living in a logo directory is evidence, not proof: reject unrelated
+   UI glyphs, generic controls, decorative images, and stale identities.
+6. Rank a verified explicit brand/logo asset first, then official app/site icons
+   and favicons. Use Logo.dev or another identity-verified service only after the
+   first-party pass, and only when acceptable for the task.
+
+If no candidate is suitable, leave `Logo` blank and report the exhausted sources.
+Create a text wordmark or other non-official fallback only with explicit user
+approval, label it as non-official in provenance, and never present it as
+retrieved brand artwork.
 
 ## Unsupported source formats
 
@@ -81,8 +111,10 @@ Logo visibility is a required attachment-quality check.
   colored-background variant. If none exists, composite the official mark onto
   a background taken from the site's published `theme-color`, documented brand
   palette, or the mark's own official dark presentation.
-- If no official icon exists, a concise identity wordmark is a valid fallback;
-  do not substitute an unrelated parent-company or generic icon.
+- If no official icon exists, leave the attachment blank by default. Create a
+  concise identity wordmark only after explicit user approval; record that it is
+  a non-official fallback and never substitute an unrelated parent-company or
+  generic icon.
 - If an opaque card can still blend into either pure white or pure black, add
   opposite-color keylines around it. Default to a white outer keyline and black
   inner keyline so at least one edge remains visible on either surface.

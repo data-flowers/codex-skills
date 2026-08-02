@@ -333,11 +333,21 @@ optimized Airtable storage is part of the request, read
 
 1. read the progress log for the Airtable ids, PAT status, and current export path
 2. locate the live target row by current Airtable export or filtered records API; prefer the Airtable `record_id` over CSV `Id`
-3. find one stable, official, publicly reachable image URL:
-   - prefer the entity website's favicon/site icon or explicit logo asset for card logos
+3. build and review a first-party candidate inventory before selecting one stable,
+   official, publicly reachable image URL:
+   - inspect HTML icon links, manifests, metadata, CSS/JS references, official
+     asset directories, and reasonable same-origin sibling filenames and formats
+   - do not stop at a tiny root favicon when the site may expose a larger logo,
+     animated favicon, app icon, wordmark, or product mark elsewhere
+   - download and visually compare plausible candidates; reject unrelated UI
+     glyphs or decorative assets even when their paths contain `logo` or `icon`
+   - prefer an explicit official logo/brand asset, then a verified official
+     favicon, site icon, or app icon suitable for card use
    - avoid broad image search unless the official site does not expose a usable asset
    - avoid date/header/hero assets when a standalone square or wordmark logo exists
    - if the logo is white on transparent and cards are likely light, prefer an official square icon or colored-background variant
+   - if the first-party pass finds nothing suitable, leave `Logo` blank; create
+     a non-official wordmark only with explicit user approval and provenance
    - treat SVG and ICO as source formats only; convert them locally to a reviewed
      PNG or WebP and do not PATCH the original URL into Airtable
 4. check the image once before patching:
