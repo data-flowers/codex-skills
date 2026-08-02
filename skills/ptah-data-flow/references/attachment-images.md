@@ -1,8 +1,9 @@
 # Image attachment optimization
 
-Read this reference when a Ptah dataset contains logos or other Airtable image
-attachments that are oversized, need recurring refreshes, or must be replaced
-without disturbing the rest of a published record.
+Read this reference only when the user explicitly asks to fetch, populate,
+refresh, repair, or synchronize logos or other Airtable image attachments. Do
+not enter this workflow merely because the dataset contains a `Logo` field or
+some rows have blank attachments.
 
 ## Contents
 

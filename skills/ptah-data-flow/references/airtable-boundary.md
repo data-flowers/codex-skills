@@ -132,11 +132,12 @@ clean map table.
    `lastModifiedTime`; do not continue with a `dateTime` fallback.
 4. Keep `Published` as a checkbox and decide its initial state explicitly; never
    lose it merely because it sits outside the core contract.
-5. Derive and import an upload artifact that omits `Updated At`, then upload
-   optimized logos separately so later general-purpose CSV updates can omit
-   `Logo`.
+5. Derive and import an upload artifact that omits `Updated At` and `Logo`.
+   Populate logos as a separate attachment workflow only when the user
+   explicitly requests it.
 6. Audit again, then verify row ids, record count, control-field state, AI
-   Context completeness, and one intended logo attachment per row.
+   Context completeness, and attachment preservation. Check logo completeness
+   only when logo population was explicitly in scope.
 7. Record the new table and view ids and names in the progress log. Treat that
    clean table as the active boundary; keep the original table recorded as
    untouched or superseded, not silently forgotten.
@@ -299,9 +300,10 @@ When a local seed list gained entries:
 4. preserve all seed aliases when multiple seeds resolve to one entity
 5. assign stable ids only to truly new entities
 6. generate a new-row upload artifact and upload only that delta
-7. handle new logos as a separate attachment delta
+7. only when explicitly requested, handle new logos as a separate attachment delta
 8. re-read the full view and verify total ids, published state, AI Context, and
-   logo counts
+   preservation of existing attachments; verify logo counts only when logo work
+   was explicitly in scope
 
 For single-field updates, the PATCH payload must be narrow:
 

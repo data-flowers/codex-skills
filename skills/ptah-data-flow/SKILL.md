@@ -33,8 +33,9 @@ This skill is for running local OODA loops around that workflow. It should help 
 - If the source is website-backed and some rows come back sparse or blocked, record those rows explicitly and support a targeted refresh pass later instead of forcing a full rebuild.
 - After a network-context change such as VPN, proxy, or auth improvement, prefer a targeted re-fetch of sparse rows before declaring the source permanently weak.
 - For post-publish maintenance, prefer the smallest safe delta: detect missing, malformed, or stale rows; generate only those rows; patch only the intended field(s); then re-export and verify the remote result.
-- For attachment-only logo fixes, use the fast path in `references/airtable-boundary.md`: find the live record id, choose the official stable image URL, compact oversized assets first, PATCH only `Logo`, and verify metadata plus the Airtable-served image or thumbnail.
-- When source images may be large or a recurring attachment refresh is needed, read `references/attachment-images.md` and adapt or run `scripts/optimize_airtable_attachments.py`. Default to a 256-pixel maximum dimension, use 128 pixels for simple small-card icons when sufficient, and treat 512 pixels as a ceiling reserved for verified high-density or detailed-logo needs. Preserve aspect ratio, never upscale raster sources, convert to WebP, strip metadata, keep a local manifest, replace upload-first, and run preservation checks.
+- Do not pull logos by default. Unless the user explicitly asks for logos or image attachments, do not research, fetch, download, generate, convert, optimize, upload, replace, remove, or completeness-audit them. Leave new `Logo` values blank and preserve existing Airtable attachments by omitting `Logo` from imports and PATCH payloads. A `Logo` field in the source or target schema does not count as an instruction to populate it.
+- Only for explicitly requested attachment work, use the fast path in `references/airtable-boundary.md`: find the live record id, choose the official stable image URL, compact oversized assets first, PATCH only `Logo`, and verify metadata plus the Airtable-served image or thumbnail.
+- When image attachment work is explicitly requested and source images may be large or a recurring refresh is needed, read `references/attachment-images.md` and adapt or run `scripts/optimize_airtable_attachments.py`. Default to a 256-pixel maximum dimension, use 128 pixels for simple small-card icons when sufficient, and treat 512 pixels as a ceiling reserved for verified high-density or detailed-logo needs. Preserve aspect ratio, never upscale raster sources, convert to WebP, strip metadata, keep a local manifest, replace upload-first, and run preservation checks.
 - Treat direct SVG and ICO attachments as unsupported. Download and convert them locally before any Airtable upload or URL-based attachment PATCH: rasterize SVG at twice the intended final dimension with a 1024-pixel intermediate cap, select the smallest ICO frame that meets the final target or otherwise its largest frame, and publish the resulting validated PNG or WebP instead of the original source URL. The bundled attachment optimizer performs this normalization to WebP during its prepare phase.
 - Treat logo visibility as part of attachment validity, not a cosmetic afterthought. Detect transparent or near-white marks, preview every candidate at full and 36-pixel thumbnail sizes on both white and black surfaces, and composite white/translucent marks onto an official brand or site-theme background before publishing. When either card edge can disappear, use `scripts/build_contrast_logo_card.py` to add dual white/black keylines. Require a fully opaque final asset and verify the Airtable-served bytes and thumbnails—not only the local source and attachment metadata.
 - Treat model-backed curation as an external data boundary. Require an explicitly requested or approved model pass, send only the minimum public-facing fields needed by the prompt, and exclude internal provenance, confidence notes, private contact data, and unrelated columns by default.
@@ -62,7 +63,7 @@ This skill is for running local OODA loops around that workflow. It should help 
    - [references/exa-websets.md](references/exa-websets.md) when Exa-backed enrichment or discovery is in play
    - [references/rewrite-runners.md](references/rewrite-runners.md) when you need to adapt a Gemini batch rewrite runner into the active dataset working area
    - [references/airtable-boundary.md](references/airtable-boundary.md) when publish, schema, PAT, base, table, view, or connection repair is in play
-   - [references/attachment-images.md](references/attachment-images.md) when logos or image attachments must be fetched, compacted, refreshed, or synchronized to Airtable
+   - [references/attachment-images.md](references/attachment-images.md) only when the user explicitly asks for logos or image attachments to be fetched, compacted, refreshed, or synchronized to Airtable
    - [references/artifacts.md](references/artifacts.md) when you need the allowed working-area model or bundled tool entrypoints
    - [references/field-notes.md](references/field-notes.md) when a prior project surfaces reusable workflow mistakes, source-of-truth changes, taxonomy redundancy, or Airtable update behavior
    - [references/prompt-starters.md](references/prompt-starters.md) when the user is vague, resuming interrupted work, or needs a clean continuation prompt shape
@@ -179,7 +180,7 @@ Steps:
 - rewrite display fields for consistency where needed
 - keep generated fields rerunnable and reviewable
 - if `Description` is being generated deterministically, optimize for concise display copy that avoids repeating data already shown in `Name`
-- for website-backed datasets, prefer source URL, profile image, role line, affiliation line, and first strong bio sentence as the deterministic enrichment spine
+- for website-backed datasets, prefer source URL, role line, affiliation line, and first strong bio sentence as the deterministic enrichment spine; do not fetch profile images unless explicitly requested
 - check required external credentials before starting model-backed enrich or rewrite work
 - for Gemini-backed batches, run a small sample first, then use a quota-safe full-run cadence: prefer `--workers 5` for normal paid Gemini accounts, but fall back to `--workers 1`, `--request-delay-seconds 4.5` or slower if the account is unknown, free-tier, downgraded, newly throttled, or returns 429/quota errors; keep cache enabled and avoid `--force` unless intentionally regenerating
 - if `Description` or `AI Context` has a defined rewrite policy, use it; bundled rewrite runners and templates count as a defined policy
@@ -227,6 +228,7 @@ Required behavior:
 - if the source table is polluted with event or unrelated custom fields and the user wants a clean company/entity map, prefer a clean sibling table containing the 12-field contract plus explicitly retained control fields such as `Published`; leave the source table untouched unless deletion was explicitly requested
 - for a clean sibling table, duplicate a correctly typed structure when possible; otherwise create `Updated At` in the Airtable UI as `Last modified time`, audit the empty table, then import the upload artifact and audit again
 - when `Published` exists or the user requests a publish state, treat it as an explicit control field outside the 12-field contract, set it deliberately, and verify it after every relevant update
+- leave new `Logo` values blank and omit `Logo` from Airtable row imports and upserts unless the user explicitly requested logo population; preserve any existing attachments without treating blank logos as a publish blocker
 
 Second look:
 
@@ -255,6 +257,7 @@ Incremental maintenance rule:
 - identify target rows by record id, missing target field, stale hash, or explicit user-named entity
 - generate only those rows, using existing caches where source fields did not change
 - patch only the target field, never untouched fields such as `Logo`
+- do not research or backfill logos for new or existing rows unless the user explicitly requested logo work
 - for logo-only work, prefer a direct record-scoped attachment PATCH over regenerating or re-uploading a CSV
 - never PATCH an SVG or ICO source URL into `Logo`; normalize it to a reviewed raster asset first and attach the converted bytes
 - for logo-only work, reject white-on-transparent and otherwise low-contrast candidates unless the downstream card background is known to make them visible; preserve the official mark by placing it on a verified brand/site-theme color, or use a clearly relevant wordmark fallback when no official icon exists
@@ -281,7 +284,7 @@ Use these as semantic guides, not rigid formulas:
   - for startups, usually a defensible market vertical or industry
 - `Name`: primary display identity
 - `Website`: primary URL for the published row; when the user wants profile-based navigation, this can be a source profile page rather than a company homepage
-- `Logo`: public logo URL if available
+- `Logo`: optional; leave blank for new rows and preserve existing attachments unless the user explicitly requests logo work
 - `Description`: short display copy for the card surface; do not waste it repeating the exact identity already visible in `Name`
 - `Year Founded`: publish-friendly founded date value, shaped to the boundary contract
 - `Email`: public contact email

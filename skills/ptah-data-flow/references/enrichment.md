@@ -29,7 +29,7 @@ Do not jump straight to rewritten `Description` or `AI Context` if the source ro
 Default order:
 
 1. recover one canonical working dataset
-2. inspect missingness across `Website`, `Description`, `Year Founded`, `Email`, `Logo`, and any other grounding fields
+2. inspect missingness across `Website`, `Description`, `Year Founded`, `Email`, and other requested grounding fields; exclude `Logo` unless the user explicitly requested logo work
 3. enrich the missing source material
 4. merge the enrichment results back into the canonical dataset with provenance
 5. curate `Description` and `AI Context`
