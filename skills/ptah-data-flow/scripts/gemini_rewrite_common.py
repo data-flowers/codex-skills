@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 import re
@@ -78,6 +79,29 @@ def row_cache_key(row: dict[str, str], row_index: int, id_column: str, name_colu
     if row_name:
         return slugify(row_name)
     return f"row-{row_index + 1}"
+
+
+def row_source_fingerprint(
+    row: dict[str, str],
+    *,
+    columns: list[str],
+    model: str,
+    prompt_version: str,
+    system_instruction: str,
+    prompt_template: str,
+) -> str:
+    payload = {
+        "model": model,
+        "prompt_version": prompt_version,
+        "system_instruction": system_instruction,
+        "prompt_template": prompt_template,
+        "fields": {
+            column: normalize_whitespace(row.get(column, ""))
+            for column in sorted(set(columns))
+        },
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def parse_csv_list(raw: str | None) -> list[str]:
@@ -185,9 +209,15 @@ def call_gemini_json(
         raise GeminiGenerationError(f"Empty text response: {body}")
 
     try:
-        return json.loads(extract_json_text(text))
+        parsed = json.loads(extract_json_text(text))
     except json.JSONDecodeError as exc:
         raise GeminiGenerationError(f"Model did not return valid JSON: {text}") from exc
+    if not isinstance(parsed, dict):
+        raise GeminiGenerationError("Model returned JSON, but the top level was not an object.")
+    parsed["_usage_metadata"] = data.get("usageMetadata") or {}
+    parsed["_model_version"] = data.get("modelVersion") or model
+    parsed["_response_id"] = data.get("responseId") or ""
+    return parsed
 
 
 def cache_path(cache_dir: Path, key: str) -> Path:

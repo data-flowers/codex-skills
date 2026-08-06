@@ -19,11 +19,12 @@ Use this reference when the project needs model-backed rewrite passes for fields
 
 ## Bundled templates
 
-The skill bundles three reusable Python templates:
+The skill bundles four reusable Python templates:
 
 - [`scripts/gemini_rewrite_common.py`](../scripts/gemini_rewrite_common.py)
 - [`scripts/rewrite_descriptions_gemini.py`](../scripts/rewrite_descriptions_gemini.py)
 - [`scripts/rewrite_ai_context_gemini.py`](../scripts/rewrite_ai_context_gemini.py)
+- [`scripts/rewrite_ai_context_gemini_batched.py`](../scripts/rewrite_ai_context_gemini_batched.py)
 
 They are not meant to be blindly run against arbitrary datasets.
 
@@ -52,6 +53,8 @@ So the reusable part is the runner pattern:
 - call Gemini
 - validate output
 - cache
+- fingerprint cache entries from model, prompt version, and transmitted fields
+- record API usage metadata when available
 - shard
 - rate-limit conservatively
 - write CSV incrementally
@@ -97,6 +100,7 @@ Default posture:
 - If the account may be downgraded, free-tier, newly throttled, or shows 429/quota errors, fall back to `--workers 1` and `--request-delay-seconds 4.5` or slower, then resume from cache.
 - Remember the user has seen Gemini jobs get throttled when the account was downgraded; do not treat that as evidence that five workers is inherently unsafe on a healthy account.
 - Keep caching on by default. Do not use `--force` unless intentionally regenerating.
+- Reject an existing cache entry when its source fingerprint does not match the current transmitted fields, model, and prompt policy.
 - Flush every 10-20 rows so an interruption preserves useful output.
 - Treat a 429 as a configuration failure: lower workers, increase delay, and resume from cache. Do not repeatedly restart at the same rate.
 - If sharding across processes, include all shards in the same rate budget. Shards are not a quota bypass.
@@ -123,6 +127,11 @@ The AI Context template is designed for:
 
 - structured markdown
 - heading-order checks
+
+Prefer the batched runner when every row uses the same policy and each result can
+be validated by stable id. It defaults to eight entities per request, keeps
+per-row cache files, and records one usage event per API call. Use the single-row
+runner for unusually large contexts, row-specific policies, or failure isolation.
 - URL-free body
 - allowed-source-link restriction
 - bounded retry with validation feedback

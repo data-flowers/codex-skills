@@ -1,189 +1,105 @@
-# Progress log
+# State and progress handoff
 
-Use a local Markdown file as the workflow memory across sessions.
+Use two artifacts with different purposes:
 
-Treat this file as the workflow ground truth unless the current artifacts clearly prove it is stale.
+- `./ptah-data-flow.state.json`: compact current state, read by default
+- `./ptah-data-flow.progress.md`: chronological evidence, read only when needed
 
-## Purpose
+## Current-state file
 
-This file is the handoff point between:
+Keep the state file under 4 KB. It should answer the next agent's routing
+questions without replaying project history.
 
-- the current agent
-- a future agent
-- the user after an interruption
+```json
+{
+  "version": 1,
+  "dataset": "example-map",
+  "stage": "stage-6-maintenance",
+  "status": "published",
+  "sourceOfTruth": "./data/entities.canonical.json",
+  "publishArtifact": "./data/entities.ptah.csv",
+  "counts": {
+    "canonical": 100,
+    "published": 97,
+    "unpublished": 3
+  },
+  "remote": {
+    "airtableUrl": "https://airtable.com/app.../tbl.../viw...",
+    "baseId": "app...",
+    "tableId": "tbl...",
+    "viewId": "viw...",
+    "pat": "present",
+    "connectionId": "uuid",
+    "gatewayOrigin": "https://example-map.data.flowers"
+  },
+  "artifacts": {
+    "latestVerification": "./data/verification.json",
+    "latestManifest": "./data/manifest.json"
+  },
+  "sourceHash": "sha256:...",
+  "canonicalHash": "sha256:...",
+  "taxonomyVersion": "v1",
+  "blockers": [],
+  "next": ["Refresh only changed source rows"],
+  "updatedAt": "2026-01-01T00:00:00Z"
+}
+```
 
-It should make it easy to answer:
+Rules:
 
-- which dataset this run is about
-- where are we now
-- what is the current source of truth
-- what is the current remote target, if any
-- what already happened
-- what is blocked
-- what should happen next
+- Record secret status only (`present` or `missing`), never values.
+- Keep only the latest authoritative artifact for each concern.
+- Use stable ids, hashes, counts, and status enums rather than prose.
+- Update atomically after a stage succeeds. Do not advance state before
+  verification passes.
+- Include only one to three next actions and current blockers.
+- A newer direct inspection overrides stale state; update the file immediately.
 
-## Default path
+## Historical progress log
 
-Use:
+Use Markdown for decisions and evidence that should survive but are not required
+for every continuation. Append or compact it after:
 
-- `./ptah-data-flow.progress.md`
+- source-of-truth changes
+- taxonomy revisions
+- model-policy changes
+- publish or deployment completion
+- important failure diagnoses
+- retirement, exception, or rollback decisions
 
-If the user already has a preferred handoff file, use that instead.
-
-## When to read it
-
-Read it at the start of a session if it exists, especially when:
-
-- the user is continuing prior work
-- the workflow is already mid-stage
-- Airtable or Ptah already exists
-- the agent is resuming after an interruption
-
-If this file already records a remote Airtable boundary, do not ignore that just because the user's latest message is shorter or less specific.
-
-## When to update it
-
-Update it after:
-
-- the active dataset is identified or changed
-- a stage is identified
-- the source of truth changes
-- a dataset is repaired or replaced
-- taxonomy is set or revised
-- curated fields are regenerated
-- publish succeeds or fails
-- a blocker or pitfall is discovered
-
-## What to include
-
-Keep these sections:
-
-### Current stage
-
-- active dataset label or slug
-- current stage name
-- why this is the current stage
-
-### Source of truth
-
-- current working artifact
-- local publish artifact if one exists
-- remote publish target if one exists
-- dataset-scoped scripts or caches if they are now part of the run
-
-When Airtable or another remote boundary exists, record it explicitly:
-
-- Airtable URL if available
-- Airtable PAT status: present or missing
-- base id and base name if known
-- table id and table name if known
-- view id and view name if known
-- whether the remote schema has been inspected yet
-- whether the remote schema has been audited yet
-- whether safe schema repairs were applied
-- whether the remote has already been published to or is still pending first publish
-
-After Airtable inspect succeeds, prefer recording both ids and names together. Later Ptah connection work depends on the resolved Airtable names, not only the ids from the URL.
-
-Record PAT status only. Do not paste the PAT secret into this file.
-
-When Ptah connection setup is in scope, also record:
-
-- Ptah admin origin if known
-- Ptah Airtable connection status: not started, tested, saved, or broken
-- Ptah Airtable connection id if known
-- if a replacement connection was saved, note that it supersedes the previous one
-
-When gateway or custom-domain deployment is in scope, also record:
-
-- canonical gateway source repository
-- hosting provider, project, and intended hostname
-- configuration path and map id
-- deployment status: not started, built, deployed, verified, or blocked
-- deployment id and immutable URL when available
-- custom-domain manifest verification status
-- live provider count and unique-id count
-- whether companion services were deployed
-- whether the deployed configuration is present in canonical source
-
-This remote block should be treated as the current remote state for later sessions unless a newer inspection proves it changed.
-
-### Completed work
-
-- short checklist or dated log of finished steps
-
-### Pitfalls and findings
-
-- important gotchas
-- schema surprises
-- taxonomy decisions
-- permission or boundary problems
-
-### Next moves
-
-- next 1 to 3 bounded actions
-- if the next move is blocked, say exactly what is missing, such as `GEMINI_API_KEY`, `EXA_API_KEY`, Airtable PAT, base id, table id, or user confirmation
-
-### Open questions
-
-- decisions still waiting on the user
-- missing credentials or target identifiers count as open questions and should be written plainly
-
-## Suggested template
+Recommended sections:
 
 ```md
 # Ptah data flow progress
 
 ## Current stage
-- Dataset: miami-tech-vcs
-- Stage: Stage 3 - taxonomy design and assignment
-- Why: Raw source is canonicalized, but category and subcategory are still unresolved.
-
-## Source of truth
-- Working dataset: ./data/entities-working.csv
-- Local publish artifact: ./data/entities.ptah.csv
-- Airtable URL: https://airtable.com/app.../tbl.../viw...
-- Remote publish target: Airtable base app... (`Miami Tech`), table tbl... (`Entities`), view viw... (`Grid view`)
-- Airtable PAT: present
-- Remote schema inspected: yes
-- Remote schema audited: yes
-- Remote schema repaired: renamed `﻿Id` to `Id`
-- Remote publish status: pending first upload
-- Ptah admin origin: http://localhost:3000
-- Ptah Airtable connection status: tested
-- Ptah Airtable connection id: 123e4567-e89b-12d3-a456-426614174000
-- Ptah gateway source: /path/to/canonical-gateway-repo
-- Ptah hostname: example-map.data.flowers
-- Ptah deployment status: not started
-- Ptah canonical-source persistence: pending
-- Builder: ./data/build_entities.py
+- Dataset: example-map
+- Stage: Stage 6 - maintenance
 
 ## Completed work
-- [x] Recovered HTML exports into one CSV
-- [x] Removed exact duplicate rows from paginated exports
-- [x] Built one canonical entity dataset
-- [ ] Finalize taxonomy
-- [ ] Rewrite descriptions
-- [ ] Publish and verify
+- 2026-01-01: Published 97 rows; verification passed.
 
 ## Pitfalls and findings
-- Source has two possible taxonomy columns; both are multi-tag.
-- Raw industry labels are too noisy to copy directly into `Subcategory`.
-- Airtable metadata requires `schema.bases:read`; records access alone is not enough.
+- Updated At is native Airtable lastModifiedTime.
 
 ## Next moves
-- Inspect full label distribution before locking taxonomy
-- Propose normalized `Category` and `Subcategory`
-- Review the resulting bucket sizes once labels are assigned
+- Refresh only changed source rows.
 
 ## Open questions
-- Does the user want to keep their existing category vocabulary, or use the default entity-type model?
+- None.
 ```
 
-## Style rules
+Keep chronology factual. Store detailed counts and machine output in JSON reports,
+then link their paths instead of pasting them into Markdown.
 
-- Keep it compact
-- Prefer bullets over long paragraphs
-- Prefer paths and facts over commentary
-- Update it as the workflow moves, not just at the end
-- Make it obvious which dataset the notes belong to when multiple datasets share one workspace
+## Read policy
+
+At task start:
+
+1. Read `ptah-data-flow.state.json` if present.
+2. Inspect the latest artifacts named there.
+3. Read the progress log only if state is missing, contradictory, or insufficient
+   for the current decision, or when the user requests history.
+
+This policy prevents a long project history from becoming recurring model input
+while retaining a durable audit trail on disk.

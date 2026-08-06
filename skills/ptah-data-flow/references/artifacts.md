@@ -63,6 +63,7 @@ The exact names can vary. What matters is that the agent treats one of them as t
 - [`scripts/upsert_airtable_csv.mjs`](../scripts/upsert_airtable_csv.mjs)
 - [`scripts/optimize_airtable_attachments.py`](../scripts/optimize_airtable_attachments.py)
 - [`scripts/build_contrast_logo_card.py`](../scripts/build_contrast_logo_card.py)
+- [`scripts/rewrite_ai_context_gemini_batched.py`](../scripts/rewrite_ai_context_gemini_batched.py)
 
 ## Not default behavior
 

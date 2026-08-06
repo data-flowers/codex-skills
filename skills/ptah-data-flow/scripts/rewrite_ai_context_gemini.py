@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
 import re
 import time
 from pathlib import Path
@@ -47,6 +48,7 @@ from gemini_rewrite_common import (
     read_optional_text,
     require_api_key,
     row_cache_key,
+    row_source_fingerprint,
     save_cached_result,
     url_candidates_from_columns,
     word_count,
@@ -142,6 +144,7 @@ def generate_ai_context(
     *,
     row: dict[str, str],
     cache_key: str,
+    input_fingerprint: str,
     api_key: str,
     model: str,
     system_instruction: str,
@@ -181,6 +184,8 @@ def generate_ai_context(
             return ai_context, {
                 "prompt_version": PROMPT_VERSION,
                 "cache_key": cache_key,
+                "input_fingerprint": input_fingerprint,
+                "model": model,
                 "ai_context": ai_context,
                 "raw_response": payload,
             }
@@ -218,6 +223,7 @@ def main() -> int:
     parser.add_argument("--shard-count", type=int, default=1)
     parser.add_argument("--shard-index", type=int, default=0)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--usage-report", type=Path, default=None)
     args = parser.parse_args()
 
     api_key = require_api_key(args.api_key)
@@ -245,7 +251,10 @@ def main() -> int:
             + ", ".join(missing_context_columns)
         )
     requested_link_columns = parse_csv_list(args.link_columns)
-    context_columns = choose_context_columns(fieldnames, requested_context_columns)
+    context_columns = choose_context_columns(
+        [column for column in fieldnames if column != args.target_column],
+        requested_context_columns,
+    )
     link_columns = choose_context_columns(fieldnames, requested_link_columns)
     if not context_columns:
         raise SystemExit("No context columns available for prompt construction.")
@@ -255,11 +264,20 @@ def main() -> int:
 
     processed = 0
     pending = []
+    usage_records: list[dict[str, object]] = []
 
     with tqdm(total=len(rows if args.limit <= 0 else rows[: args.limit]), desc="AI Context") as progress:
         selected_rows = rows[: args.limit] if args.limit > 0 else rows
         for row_index, row in enumerate(selected_rows):
             cache_key = row_cache_key(row, row_index, args.id_column, args.name_column)
+            input_fingerprint = row_source_fingerprint(
+                row,
+                columns=[*context_columns, *link_columns],
+                model=args.model,
+                prompt_version=PROMPT_VERSION,
+                system_instruction=system_instruction,
+                prompt_template=prompt_template,
+            )
             try:
                 allowed = in_shard(cache_key, args.shard_count, args.shard_index)
             except ValueError as exc:
@@ -269,15 +287,22 @@ def main() -> int:
                 continue
 
             cached = None if args.force else load_cached_result(args.cache_dir, cache_key)
+            if cached is not None and cached.get("input_fingerprint") != input_fingerprint:
+                cached = None
             if cached is not None:
                 row[args.target_column] = cached["ai_context"]
+                usage_records.append({
+                    "cache_key": cache_key,
+                    "cache_hit": True,
+                    "usage": cached.get("raw_response", {}).get("_usage_metadata", {}),
+                })
                 processed += 1
                 progress.update(1)
                 if processed % max(args.flush_every, 1) == 0:
                     write_csv(args.output_csv, fieldnames, rows)
                 continue
 
-            pending.append((row_index, row, cache_key))
+            pending.append((row_index, row, cache_key, input_fingerprint))
 
         with ThreadPoolExecutor(max_workers=max(args.workers, 1)) as executor:
             future_map = {
@@ -285,6 +310,7 @@ def main() -> int:
                     generate_ai_context,
                     row=row,
                     cache_key=cache_key,
+                    input_fingerprint=input_fingerprint,
                     api_key=api_key,
                     model=args.model,
                     system_instruction=system_instruction,
@@ -294,16 +320,21 @@ def main() -> int:
                     max_attempts=args.max_attempts,
                     request_delay_seconds=args.request_delay_seconds,
                     timeout_seconds=args.timeout_seconds,
-                ): (row, cache_key)
-                for _, row, cache_key in pending
+                ): (row, cache_key, input_fingerprint)
+                for _, row, cache_key, input_fingerprint in pending
             }
 
             for future in as_completed(future_map):
-                row, cache_key = future_map[future]
+                row, cache_key, _input_fingerprint = future_map[future]
                 try:
                     ai_context, cache_payload = future.result()
                     row[args.target_column] = ai_context
                     save_cached_result(args.cache_dir, cache_key, cache_payload)
+                    usage_records.append({
+                        "cache_key": cache_key,
+                        "cache_hit": False,
+                        "usage": cache_payload.get("raw_response", {}).get("_usage_metadata", {}),
+                    })
                 except Exception:
                     write_csv(args.output_csv, fieldnames, rows)
                     for other in future_map:
@@ -316,7 +347,31 @@ def main() -> int:
                     write_csv(args.output_csv, fieldnames, rows)
 
     write_csv(args.output_csv, fieldnames, rows)
+    usage_totals: dict[str, int] = {}
+    for record in usage_records:
+        for key, value in record.get("usage", {}).items():
+            if isinstance(value, int):
+                usage_totals[key] = usage_totals.get(key, 0) + value
+    usage_report = args.usage_report or args.cache_dir / "usage-summary.json"
+    usage_report.parent.mkdir(parents=True, exist_ok=True)
+    usage_report.write_text(
+        json.dumps(
+            {
+                "model": args.model,
+                "prompt_version": PROMPT_VERSION,
+                "rows": len(usage_records),
+                "cache_hits": sum(bool(item["cache_hit"]) for item in usage_records),
+                "api_results": sum(not bool(item["cache_hit"]) for item in usage_records),
+                "usage": usage_totals,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     print(f"Wrote {len(rows)} rows -> {args.output_csv}")
+    print(f"Usage summary -> {usage_report}")
     return 0
 
 

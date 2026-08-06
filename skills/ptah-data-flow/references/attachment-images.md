@@ -9,12 +9,14 @@ some rows have blank attachments.
 
 - [Default image policy](#default-image-policy)
 - [Official asset discovery](#official-asset-discovery)
+- [Logo.dev candidate discovery](#logodev-candidate-discovery)
 - [Unsupported source formats](#unsupported-source-formats)
 - [Transparency and contrast policy](#transparency-and-contrast-policy)
 - [Dual-background card builder](#dual-background-card-builder)
 - [Bundled helper](#bundled-helper)
 - [Safe Airtable replacement](#safe-airtable-replacement)
 - [Batch sequence and second look](#batch-sequence-and-second-look)
+- [Completeness and gateway acceptance](#completeness-and-gateway-acceptance)
 
 ## Default image policy
 
@@ -26,8 +28,8 @@ some rows have blank attachments.
   Airtable attachment value.
 - Treat logo services such as Logo.dev as optional accelerators. Use them only
   with a valid key and verify the returned identity. If the service is missing,
-  unauthorized, or returns a placeholder, fall back to the official site asset,
-  published theme, or a relevant wordmark rather than blocking the workflow.
+  unauthorized, or returns a placeholder, fall back to the official site asset
+  or leave the field blank with a reviewed exception. Do not invent a wordmark.
 - Keep originals temporary unless the user explicitly wants an archive.
 - Process the first frame for ordinary multi-frame images; apply the adaptive
   frame-selection rule below for ICO sources.
@@ -71,6 +73,41 @@ If no candidate is suitable, leave `Logo` blank and report the exhausted sources
 Create a text wordmark or other non-official fallback only with explicit user
 approval, label it as non-official in provenance, and never present it as
 retrieved brand artwork.
+
+## Logo.dev candidate discovery
+
+For an explicit logo-completeness or repair request, Logo.dev is a discovery
+source, not an identity authority.
+
+1. Resolve and verify the current company-owned website before requesting a
+   logo. Reject parked, for-sale, generic-directory, and unrelated redirect
+   domains. Use location, category, source profile, and description evidence to
+   disambiguate common company names.
+2. Prefer Logo.dev domain lookup against the registrable current domain. Request
+   a raster result at the intended maximum size and disable placeholder or
+   monogram fallback, such as with `fallback=404`, so absence stays observable.
+3. Keep the API token in the working area's ignored `.env`. Never write the
+   token into source URLs, manifests, CSVs, reports, or progress logs.
+4. Decode the response and reject HTML, empty files, screenshots, social-preview
+   cards, generic monograms, and visually unrelated marks even when the request
+   succeeds.
+5. Compare the candidate with the current official site and available first-party
+   assets. Acquisitions and rebrands require special care: do not assign an
+   acquirer's logo to a distinct historical row, and do not keep both old and
+   rebranded duplicate rows published merely to increase coverage.
+6. Use Logo.dev name lookup only after domain and first-party discovery fail.
+   Treat every name result as quarantined until a visual and entity-identity
+   review proves it belongs to the intended organization.
+7. Record a discovery ledger with stable row id, company name, current website,
+   domain, candidate source, HTTP/decode result, identity decision, and rejection
+   reason. Keep approved candidates separate from quarantines and approved blank
+   exceptions.
+
+A visually plausible response is not enough. Logo services can return a social
+image, an acquired company's new parent identity, or another organization with
+the same name. Prefer a verified company-issued asset when the service result is
+wrong. If no trustworthy mark exists, preserve the blank explicitly rather than
+publishing a guess.
 
 ## Unsupported source formats
 
@@ -247,6 +284,35 @@ Use this order:
    and preservation.
 8. Record the manifest, verification report, policy, and completion status in
    the progress log.
+
+Do not limit the second look to rows that already have a `Logo` value. A filter
+such as `rows.filter(row => row.logoUrl)` can prove that existing files decode
+while silently allowing every blank to pass. Audit the full published id set.
+
+## Completeness and gateway acceptance
+
+Maintain a small, reviewed blank-logo exception artifact. Each entry must include
+the stable id, name, official website, evidence sources checked, and a concrete
+reason no publishable mark exists. Acceptance requires:
+
+- every published id is present exactly once
+- every non-exempt published row has one intended logo
+- every blank is in the exception artifact
+- every exception is still blank; a newly populated exception fails until the
+  stale exemption is removed
+- every served image decodes, is WebP unless the target contract says otherwise,
+  and stays within the configured dimension ceiling
+- every gateway logo URL is a durable local storage path; no expiring Airtable,
+  Logo.dev, or other external URL remains in the live provider feed
+- zero legacy, failed, empty, or externally hosted assets remain
+
+After machine checks pass, use the real viewer to inspect a labeled sample on
+its actual light and dark surfaces. Always include user-reported companies,
+common names, redirects, rebrands, acquisitions, Logo.dev name matches, manually
+cropped sources, and contrast-card outputs. Verify manually cropped captures
+immediately after writing them; dimensions and MIME type can still describe a
+blank crop. If the viewer is canvas-based, use screenshots or pixel checks
+rather than relying only on the accessibility tree.
 
 After this workflow, derive a general Airtable upload artifact that omits
 `Logo` or the optimized attachment field. Keep the canonical 12-field Ptah

@@ -383,7 +383,7 @@ def prepare(args: argparse.Namespace, rows: list[dict[str, str]]) -> dict[str, A
                             "error": str(error),
                         }
                     )
-                if index % 10 == 0 or index == len(targets):
+                if index % args.progress_every == 0 or index == len(targets):
                     print(f"Prepared {index}/{len(targets)} images", flush=True)
     results.sort(key=lambda item: item["id"])
     original_bytes = sum(item["original"]["bytes"] for item in results)
@@ -714,7 +714,8 @@ def sync(
                     }
                 )
                 break
-        print(f"Synced {index}/{len(images)} attachments", flush=True)
+        if index % args.progress_every == 0 or index == len(images):
+            print(f"Synced {index}/{len(images)} attachments", flush=True)
         if index < len(images):
             time.sleep(0.25)
 
@@ -807,6 +808,7 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--workers", type=int, default=6)
+    parser.add_argument("--progress-every", type=int, default=25)
     parser.add_argument("--magick", default=shutil.which("magick") or "")
     parser.add_argument("--reuse-manifest", action="store_true")
     parser.add_argument("--execute", action="store_true")
@@ -832,6 +834,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("--quality must be between 1 and 100")
     if not 1 <= args.workers <= 12:
         parser.error("--workers must be between 1 and 12")
+    if args.progress_every < 1:
+        parser.error("--progress-every must be at least 1")
     if args.only and not args.execute:
         parser.error("--only requires --execute")
     if args.execute and (not args.base or not args.table):

@@ -47,6 +47,7 @@ from gemini_rewrite_common import (
     read_optional_text,
     require_api_key,
     row_cache_key,
+    row_source_fingerprint,
     save_cached_result,
     word_count,
     write_csv,
@@ -105,6 +106,7 @@ def generate_description(
     *,
     row: dict[str, str],
     cache_key: str,
+    input_fingerprint: str,
     name: str,
     api_key: str,
     model: str,
@@ -141,6 +143,8 @@ def generate_description(
             return description, {
                 "prompt_version": PROMPT_VERSION,
                 "cache_key": cache_key,
+                "input_fingerprint": input_fingerprint,
+                "model": model,
                 "name": name,
                 "description": description,
                 "raw_response": payload,
@@ -204,7 +208,10 @@ def main() -> int:
             "Context columns not found in input: "
             + ", ".join(missing_context_columns)
         )
-    context_columns = choose_context_columns(fieldnames, requested_context_columns)
+    context_columns = choose_context_columns(
+        [column for column in fieldnames if column != args.target_column],
+        requested_context_columns,
+    )
     if not context_columns:
         raise SystemExit("No context columns available for prompt construction.")
 
@@ -218,6 +225,14 @@ def main() -> int:
         selected_rows = rows[: args.limit] if args.limit > 0 else rows
         for row_index, row in enumerate(selected_rows):
             cache_key = row_cache_key(row, row_index, args.id_column, args.name_column)
+            input_fingerprint = row_source_fingerprint(
+                row,
+                columns=context_columns,
+                model=args.model,
+                prompt_version=PROMPT_VERSION,
+                system_instruction=system_instruction,
+                prompt_template=prompt_template,
+            )
             try:
                 allowed = in_shard(cache_key, args.shard_count, args.shard_index)
             except ValueError as exc:
@@ -227,6 +242,8 @@ def main() -> int:
                 continue
 
             cached = None if args.force else load_cached_result(args.cache_dir, cache_key)
+            if cached is not None and cached.get("input_fingerprint") != input_fingerprint:
+                cached = None
             if cached is not None:
                 row[args.target_column] = cached["description"]
                 processed += 1
@@ -235,7 +252,7 @@ def main() -> int:
                     write_csv(args.output_csv, fieldnames, rows)
                 continue
 
-            pending.append((row_index, row, cache_key))
+            pending.append((row_index, row, cache_key, input_fingerprint))
 
         with ThreadPoolExecutor(max_workers=max(args.workers, 1)) as executor:
             future_map = {
@@ -243,6 +260,7 @@ def main() -> int:
                     generate_description,
                     row=row,
                     cache_key=cache_key,
+                    input_fingerprint=input_fingerprint,
                     name=normalize_whitespace(row.get(args.name_column, "")),
                     api_key=api_key,
                     model=args.model,
@@ -253,8 +271,8 @@ def main() -> int:
                     max_attempts=args.max_attempts,
                     request_delay_seconds=args.request_delay_seconds,
                     timeout_seconds=args.timeout_seconds,
-                ): (row, cache_key)
-                for _, row, cache_key in pending
+                ): (row, cache_key, input_fingerprint)
+                for _, row, cache_key, input_fingerprint in pending
             }
 
             for future in as_completed(future_map):
