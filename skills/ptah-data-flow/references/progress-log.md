@@ -94,6 +94,18 @@ When Ptah connection setup is in scope, also record:
 - Ptah Airtable connection id if known
 - if a replacement connection was saved, note that it supersedes the previous one
 
+When gateway or custom-domain deployment is in scope, also record:
+
+- canonical gateway source repository
+- hosting provider, project, and intended hostname
+- configuration path and map id
+- deployment status: not started, built, deployed, verified, or blocked
+- deployment id and immutable URL when available
+- custom-domain manifest verification status
+- live provider count and unique-id count
+- whether companion services were deployed
+- whether the deployed configuration is present in canonical source
+
 This remote block should be treated as the current remote state for later sessions unless a newer inspection proves it changed.
 
 ### Completed work
@@ -140,6 +152,10 @@ This remote block should be treated as the current remote state for later sessio
 - Ptah admin origin: http://localhost:3000
 - Ptah Airtable connection status: tested
 - Ptah Airtable connection id: 123e4567-e89b-12d3-a456-426614174000
+- Ptah gateway source: /path/to/canonical-gateway-repo
+- Ptah hostname: example-map.data.flowers
+- Ptah deployment status: not started
+- Ptah canonical-source persistence: pending
 - Builder: ./data/build_entities.py
 
 ## Completed work

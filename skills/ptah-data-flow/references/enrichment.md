@@ -36,6 +36,18 @@ Default order:
 6. review distributions
 7. publish only after the intended curation pass is complete
 
+## Evidence tiers and coverage
+
+Assign every enriched row one evidence tier:
+
+- `direct-source`: usable content came from the entity's official site or user-provided primary source
+- `supported-fallback`: the primary source was sparse or blocked, and targeted research produced attributable supporting evidence
+- `limited`: available evidence remains too weak for confident detail
+
+Keep the tier, evidence URLs, and retrieval status in the working dataset or a sidecar. Report counts for all tiers before curation. For limited rows, use only claims the evidence supports, keep uncertainty visible in provenance, and do not manufacture a polished comprehensive profile.
+
+Refresh only sparse or failed rows after a network, authentication, or retrieval improvement. Do not rebuild successful direct-source rows unnecessarily.
+
 ## Exa's role
 
 Exa is an enrichment and discovery layer, not the source of truth by itself.
@@ -118,6 +130,17 @@ If the project already has rewrite scripts, prompts, or templates:
 - if multiple datasets share one workspace, keep rewrite scripts, caches, and outputs dataset-scoped rather than reusing one global scratch area
 
 Read [rewrite-runners.md](rewrite-runners.md) when you want bundled Gemini rewrite templates to start from.
+
+## Model transmission allowlist
+
+Before a model-backed batch, define and record:
+
+- the approved public-facing input fields
+- the maximum context characters sent per row
+- the target generated fields
+- the model name
+
+Send only that allowlist. A typical minimum is entity name, public website, approved source taxonomy labels, and a bounded excerpt of grounded context. Add preserved original tags to final local output after generation when the model does not need them. Never infer approval for private contacts, internal notes, full provenance blobs, or unrelated columns.
 
 ## Progress and execution discipline
 

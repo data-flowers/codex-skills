@@ -6,6 +6,7 @@ Use this reference whenever `Category` or `Subcategory` is under discussion.
 
 - [Default model](#default-model)
 - [Required sequence](#required-sequence)
+- [Source taxonomy preservation](#source-taxonomy-preservation)
 - [Shape constraints](#shape-constraints)
 - [Common patterns](#common-patterns)
 - [What good looks like](#what-good-looks-like)
@@ -112,6 +113,18 @@ After assigning or proposing labels, review:
 
 Revise once if needed.
 
+## Source taxonomy preservation
+
+When the user asks to start from a source classification and then re-evaluate it, keep three separate layers:
+
+1. **Initial classification**: copy the user-designated source signal into explicit helper fields such as `Initial Category` and `Initial Subcategory` before model or rule-based reassignment.
+2. **Final classification**: write the re-evaluated navigation result only to Ptah `Category` and `Subcategory`.
+3. **Original classification**: retain the untouched source labels under source-specific helper names and, when useful, a clearly labeled original-tags section in `AI Context`.
+
+Do not rename an original source field to make it look like the final result. If the destination has a grouping field such as `Company Group`, decide explicitly whether it should carry an original source label or the new taxonomy, then verify that mapping after publish.
+
+Review preservation mechanically across the full dataset: no missing original labels, no final assignments accidentally copied back into source fields, and no loss of multi-tag source values.
+
 ## Shape constraints
 
 When the user asks for a "balanced" or "meaningful" taxonomy, enforce these checks before publishing:
@@ -124,7 +137,7 @@ When the user asks for a "balanced" or "meaningful" taxonomy, enforce these chec
 - For compact card or filter surfaces, prefer both `Category` and `Subcategory` labels at 17 characters or fewer. Treat visible ellipsis as a taxonomy quality defect, not acceptable presentation. Examples: `Companies`, `Open Source`, `Publishers`, `Dev Workspaces`.
 - Subcategory names complement category names. Good: `Category = STEM & Technical Learning`, `Subcategory = Math & Logic Practice`. Weak: `Category = Math Learning`, `Subcategory = Math Games & Practice`.
 
-If the data cannot satisfy these constraints without absurd labels, merge sparse buckets upward and record the tradeoff in the progress log.
+If the data cannot satisfy these constraints without absurd labels, merge sparse buckets upward. Preserve an intrinsically rare class only when its semantics are materially different, and record the exception and representative rows in the progress log.
 
 ## Common patterns
 

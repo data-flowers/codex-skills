@@ -11,6 +11,7 @@ Use this reference when publish, schema, permissions, or connection repair is in
 - [New-table Updated At provisioning](#new-table-updated-at-provisioning)
 - [Clean sibling-table migration](#clean-sibling-table-migration)
 - [What to inspect first](#what-to-inspect-first)
+- [View semantics and control fields](#view-semantics-and-control-fields)
 - [Generic schema audit](#generic-schema-audit)
 - [Incremental Airtable maintenance](#incremental-airtable-maintenance)
 - [What to ask for before publish](#what-to-ask-for-before-publish)
@@ -166,6 +167,21 @@ It also helps separate:
 - permission problems
 - base or table lookup problems
 - schema drift
+
+## View semantics and control fields
+
+The 12-field contract does not describe every condition that makes a row visible in a published view. Inspect the target view and all control or grouping fields before building the upload artifact.
+
+Common examples include:
+
+- `Published`
+- `Status`
+- `Record State`
+- `Company Group`
+
+Resolve the view's filter conditions when the available API or authenticated UI exposes them. Otherwise infer required states from existing rows, view behavior, or explicit user instructions and record the assumption.
+
+Set each required control field deliberately with its real Airtable type. After upload, verify the destination view count as well as the table count, and read back the control values across all published rows. A correct table count with an empty filtered view is a failed publish.
 
 ## Generic schema audit
 
@@ -492,6 +508,8 @@ After an API upload or partial update:
 - inspect the table or view again to verify record count
 - read back a small sample of the intended fields, such as `Id`, `Name`, and `AI Context`
 - for enrichment updates, count created vs updated records and confirm the update did not create duplicates
+- verify destination-view count and every publish-control or grouping field required for rows to appear downstream
+- verify preserved original taxonomy helper fields or context markers when reclassification was part of the request
 - record the verification in the progress log
 
 ## Share step for Ptah connection
@@ -556,6 +574,7 @@ If Ptah connection setup is in scope:
 - record the resolved Airtable base, table, and view names after inspect
 - record whether the Airtable connection has already been tested
 - record the saved Ptah connection id after a successful save
+- after save, call the live provider endpoint and verify expected count, unique ids, taxonomy coverage, one representative mapped row, and native timestamp behavior
 - prefer the deterministic helper over ad hoc fetch snippets
 
 ## PAT requirements

@@ -100,6 +100,8 @@ Exit criteria:
 
 - category model is explicit
 - subcategory model is explicit
+- initial, final, and original source classification layers are distinct when reclassification is requested
+- original source labels are preserved mechanically across all rows
 - label distribution has been reviewed and, if needed, revised
 
 ## Stage 4: curation and enrichment
@@ -130,6 +132,8 @@ Important:
 Exit criteria:
 
 - enough grounded source material exists for the curated fields you plan to fill
+- every enriched row has direct-source, supported-fallback, or limited evidence status
+- the model transmission allowlist and context cap are recorded when an external model is used
 - curated fields are usable
 - output quality has been reviewed at the distribution level
 
@@ -154,6 +158,29 @@ Exit criteria:
 - required boundary fields are correct
 - `Updated At` was verified as `lastModifiedTime` both before and after first import into any new table
 - the published data is trustworthy enough to check in Ptah
+
+## Stage 5b: connect, deploy, and verify the gateway
+
+Goal:
+
+- activate the saved Ptah connection on the intended production gateway and hostname
+
+Important:
+
+- identify the actual deployment platform before assuming the gateway is an SSH target
+- verify the saved connection through the live provider endpoint before configuring the hostname
+- keep the map configuration in canonical source, not only an isolated deployment snapshot
+- inspect dirty repository state and companion-service deployment scope before production writes
+- require explicit approval when the production snapshot contains unrelated changes
+- verify the final custom-domain manifest after propagation; the immutable deployment URL alone is insufficient
+
+Exit criteria:
+
+- connection id and provider mapping are verified
+- custom domain is active and routes to the intended map
+- live provider count and unique ids match the published dataset
+- deployment evidence is saved
+- canonical source contains the deployed configuration, or the remaining persistence risk is explicitly recorded
 
 ## Stage 6: maintenance and repair
 
@@ -181,7 +208,7 @@ Priority rule:
 
 ## Second-look rule
 
-After Stage 2, Stage 3, Stage 4, and Stage 5, perform a second look before declaring success.
+After Stage 2, Stage 3, Stage 4, Stage 5, and Stage 5b, perform a second look before declaring success.
 
 That review should check:
 

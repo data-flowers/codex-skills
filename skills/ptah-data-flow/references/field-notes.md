@@ -89,3 +89,27 @@ Avoid one-row subcategory buckets unless the user intentionally wants them. Afte
 ## Airtable Record Preservation
 
 When updating Airtable, preserve record identity by default. Use upload-safe subset CSVs and patch only changed fields. Avoid delete-and-reupload flows unless the user explicitly asks for replacement or stale rows cannot be removed safely another way.
+
+## Reclassification Preservation
+
+When a user asks to start from a source category and then re-evaluate it, preserve three layers: explicit initial classification, final Ptah classification, and untouched original source labels. Verify all three mechanically after publish. Do not reinterpret the source field in place or allow the new taxonomy to overwrite the provenance needed to explain the original classification.
+
+## Evidence-tiered Enrichment
+
+Classify enrichment as direct-source, supported-fallback, or limited. Keep per-row provenance and publish a coverage summary before curation. A small number of limited rows is acceptable when evidence is genuinely weak; fabricated completeness is not.
+
+## Airtable View Controls
+
+Published visibility may depend on fields outside the 12-field contract. Inspect and verify view filters plus control fields such as publish flags, status, record state, and grouping. Verify the filtered destination view count, not only the underlying table count.
+
+## Gateway Deployment Scope
+
+A gateway name does not imply SSH. Resolve the real runtime, repository, hosting project, and deployment surface first. Inspect dirty state and deployment scripts for unrelated changes and companion services. Use the narrowest supported deployment path, and require explicit approval before publishing a broader dirty snapshot.
+
+## Custom-domain Acceptance
+
+An immutable hosting deployment may serve the new manifest before the custom domain converges. Do not accept direct access to a newly uploaded config as proof of routing. Require the custom-domain manifest to map the hostname to the intended map, then verify config, provider count, unique ids, taxonomy, settings, and a non-sending invalid submission.
+
+## Canonical Deployment Source
+
+An isolated snapshot can make a safe build possible, but it is not durable configuration ownership. Ensure the deployed map config is merged into the canonical gateway repository or record the persistence risk as open. A future routine deployment must not silently remove the map.

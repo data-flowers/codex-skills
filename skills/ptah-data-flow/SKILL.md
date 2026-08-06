@@ -1,6 +1,6 @@
 ---
 name: ptah-data-flow
-description: Use when a user needs to turn a rough list, appended seed file, folder of raw data, CSV, HTML export, nested list, markdown, PDF, event-heavy Airtable base, or broken Ptah publish flow into a clean Ptah-ready dataset. Also use for published-state maintenance, compact taxonomy or capability labels, model-backed curation, and contrast-safe logo or image attachment repair. This skill treats Airtable as storage and publish plumbing, not the main editing surface.
+description: Use when a user needs to turn a rough list, appended seed file, folder of raw data, CSV, HTML export, nested list, markdown, PDF, event-heavy Airtable base, or broken Ptah publish flow into a clean Ptah-ready dataset. Also use for published-state maintenance, compact taxonomy or capability labels, model-backed curation, Ptah Airtable connection setup, gateway or custom-domain deployment, and contrast-safe logo or image attachment repair. This skill treats Airtable as storage and publish plumbing, not the main editing surface.
 ---
 # ptah-data-flow
 
@@ -22,6 +22,7 @@ This skill is for running local OODA loops around that workflow. It should help 
 - Keep one canonical working dataset and derive publish artifacts from it.
 - Separate source recovery, canonicalization, taxonomy, curation, and publish. Do not blur them together.
 - Do not copy noisy raw taxonomies directly into single-value Ptah fields.
+- When reclassifying a source taxonomy, keep three distinct layers: initial classification copied from the source signal, final re-evaluated Ptah classification, and untouched original source labels. Preserve originals in helper fields or context without allowing them to overwrite the final assignment.
 - Do not be myopic. Before deciding on taxonomy, rewrites, or cleanup rules, inspect the whole dataset or the relevant distribution.
 - Always do a second look after a meaningful stage output. Do not wait for the user to explicitly ask for review.
 - Maintain a local progress log so the workflow can survive interrupted sessions. Read it at the start if it exists, and update it after each meaningful stage output.
@@ -39,7 +40,7 @@ This skill is for running local OODA loops around that workflow. It should help 
 - When image attachment work is explicitly requested and source images may be large or a recurring refresh is needed, read `references/attachment-images.md` and adapt or run `scripts/optimize_airtable_attachments.py`. Default to a 256-pixel maximum dimension, use 128 pixels for simple small-card icons when sufficient, and treat 512 pixels as a ceiling reserved for verified high-density or detailed-logo needs. Preserve aspect ratio, never upscale raster sources, convert to WebP, strip metadata, keep a local manifest, replace upload-first, and run preservation checks.
 - Treat direct SVG and ICO attachments as unsupported. Download and convert them locally before any Airtable upload or URL-based attachment PATCH: rasterize SVG at twice the intended final dimension with a 1024-pixel intermediate cap, select the smallest ICO frame that meets the final target or otherwise its largest frame, and publish the resulting validated PNG or WebP instead of the original source URL. The bundled attachment optimizer performs this normalization to WebP during its prepare phase.
 - Treat logo visibility as part of attachment validity, not a cosmetic afterthought. Detect transparent or near-white marks, preview every candidate at full and 36-pixel thumbnail sizes on both white and black surfaces, and composite white/translucent marks onto an official brand or site-theme background before publishing. When either card edge can disappear, use `scripts/build_contrast_logo_card.py` to add dual white/black keylines. Require a fully opaque final asset and verify the Airtable-served bytes and thumbnails—not only the local source and attachment metadata.
-- Treat model-backed curation as an external data boundary. Require an explicitly requested or approved model pass, send only the minimum public-facing fields needed by the prompt, and exclude internal provenance, confidence notes, private contact data, and unrelated columns by default.
+- Treat model-backed curation as an external data boundary. Require an explicitly requested or approved model pass, record the approved field allowlist and context-length cap, send only those minimum public-facing fields, and exclude internal provenance, confidence notes, private contact data, and unrelated columns by default.
 - Never use a full-record Airtable update for a single-field maintenance job. Use record-scoped PATCH payloads that include only the field being changed, so attachment fields such as `Logo` are preserved.
 - Do not stop at a local draft if the next bounded transform is obvious and all required inputs, credentials, and tools are already available. Continue autonomously.
 - If the next step is blocked by a missing external credential, permission, or target identifier, say that explicitly and ask for it directly instead of acting finished.
@@ -64,6 +65,7 @@ This skill is for running local OODA loops around that workflow. It should help 
    - [references/exa-websets.md](references/exa-websets.md) when Exa-backed enrichment or discovery is in play
    - [references/rewrite-runners.md](references/rewrite-runners.md) when you need to adapt a Gemini batch rewrite runner into the active dataset working area
    - [references/airtable-boundary.md](references/airtable-boundary.md) when publish, schema, PAT, base, table, view, or connection repair is in play
+   - [references/gateway-deployment.md](references/gateway-deployment.md) when Ptah connection activation, a gateway repository, Cloudflare Pages, a custom hostname, DNS, or production deployment is in play
    - [references/attachment-images.md](references/attachment-images.md) only when the user explicitly asks for logos or image attachments to be fetched, compacted, refreshed, or synchronized to Airtable
    - [references/artifacts.md](references/artifacts.md) when you need the allowed working-area model or bundled tool entrypoints
    - [references/field-notes.md](references/field-notes.md) when a prior project surfaces reusable workflow mistakes, source-of-truth changes, taxonomy redundancy, or Airtable update behavior
@@ -159,6 +161,8 @@ Required behavior:
 - if the user has a taxonomy idea, evaluate it against the real data and Ptah constraints
 - if the user does not know, use the default approach from the taxonomy reference
 - if the source taxonomy is multi-tagged, choose one final `Subcategory` per row and retain the raw tag set only in helper columns or context fields
+- if the user names a source field as the initial category signal, copy it into explicit initial-classification helper fields before re-evaluation; never reinterpret the source field in place
+- preserve the original source classification separately from the final `Category` and `Subcategory`, and verify that preservation after publish
 - when balancing taxonomy, make `Subcategory` add detail within `Category` rather than repeating it; prefer 2-9 subcategories per category and avoid final buckets with 5 or fewer rows unless the user explicitly wants rare classes preserved
 - for mixed speaker-company style datasets, use `Name` for the user-facing display identity the user asked for, and move relationship detail such as affiliation into `Description` or helper columns
 - for startup datasets, prefer market verticals or industries for `Subcategory`; do not fall back to alphabetical navigation buckets unless the user explicitly wants navigational groupings instead of semantic taxonomy
@@ -178,6 +182,7 @@ Use when descriptions, AI context, or other optional fields are thin, noisy, inc
 Steps:
 
 - enrich missing source material when rows are too sparse for good curation
+- classify enrichment evidence per row as direct-source, supported fallback, or deliberately limited; summarize coverage and never present limited rows as fully researched
 - rewrite display fields for consistency where needed
 - keep generated fields rerunnable and reviewable
 - if `Description` is being generated deterministically, optimize for concise display copy that avoids repeating data already shown in `Name`
@@ -204,6 +209,7 @@ Required behavior:
 - read [references/airtable-boundary.md](references/airtable-boundary.md)
 - validate the 12-field downstream contract
 - inspect the actual Airtable schema before assuming types or order
+- inspect the destination view's filters and every publish-control or grouping field that determines whether records appear downstream; do not verify only the 12-field core
 - expect practical schema drift from the nominal 12-field contract; common differences include numeric `Id`, attachment-based `Logo`, extra boolean publish flags, and text fields that are narrower than the ideal local draft
 - treat Airtable schema audit as its own blocker check: exact field names, hidden BOM/whitespace pollution, missing required fields, and required boundary field types
 - treat `Updated At` as a hard requirement: it must be an Airtable `lastModifiedTime` field before the boundary is considered clean
@@ -224,6 +230,7 @@ Required behavior:
 - when asking for an Airtable PAT, ask for the full secret token and remind the user to save it at creation time; the later Airtable UI may only show a short token id, which is not enough for API calls
 - do not assume the base can be created over API in the normal flow; default to the user creating or choosing their Airtable base first unless they explicitly have an API-supported base-creation path
 - if Ptah connection setup is in scope, inspect Airtable first, resolve the real table and view names, test the Ptah connection, and only then save it
+- after saving a Ptah connection, read the live provider endpoint and verify expected count, unique ids, taxonomy coverage, a representative mapped row, and the configured native timestamp behavior
 - if Airtable URL plus PAT are already available, do not ask the user to explain Airtable ids or manually provide table/view names; resolve them from inspect
 - if the target table already contains sample or legacy rows, treat append-versus-replace as an explicit decision unless the user already authorized wiping them
 - if the source table is polluted with event or unrelated custom fields and the user wants a clean company/entity map, prefer a clean sibling table containing the 12-field contract plus explicitly retained control fields such as `Published`; leave the source table untouched unless deletion was explicitly requested
@@ -235,6 +242,26 @@ Second look:
 
 - verify field order, field types, and required boundary fields
 - verify the resulting publish artifact before blaming Ptah
+
+### Stage 5b: connect, deploy, and verify the gateway
+
+Use when the user asks to activate a Ptah connection on a gateway, custom hostname, or production viewer.
+
+Required behavior:
+
+- read [references/gateway-deployment.md](references/gateway-deployment.md)
+- identify the actual runtime and deployment surface before assuming the gateway is an SSH host
+- keep the map configuration in the canonical gateway source repository; an isolated deployment snapshot is not durable source of truth by itself
+- inspect repository dirtiness and deployment scripts before production writes, and identify unrelated changes or companion services in the release scope
+- require explicit approval if the deployable snapshot contains unrelated changes beyond the requested map
+- verify both the immutable deployment URL and the final custom hostname; the custom-domain manifest must route the hostname to the intended map before declaring success
+- save a compact deployment-verification artifact and update the progress log with connection, domain, deployment, and live acceptance state
+
+Second look:
+
+- confirm the custom hostname returns the intended manifest and config after propagation
+- confirm the provider endpoint returns the expected unique records and taxonomy
+- confirm the canonical repository contains the deployed configuration so a later release cannot remove it silently
 
 ### Stage 6: maintenance and repair
 
@@ -297,4 +324,5 @@ Use these as semantic guides, not rigid formulas:
 
 - one clean local working dataset
 - one publish-ready artifact, unless you are explicitly blocked before publish
+- one gateway deployment-verification artifact when connection activation or a custom hostname is in scope
 - a short note on what changed, what was checked, what status was reached, and what the next loop should be
