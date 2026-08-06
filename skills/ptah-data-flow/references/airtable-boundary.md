@@ -183,6 +183,8 @@ Resolve the view's filter conditions when the available API or authenticated UI 
 
 Set each required control field deliberately with its real Airtable type. After upload, verify the destination view count as well as the table count, and read back the control values across all published rows. A correct table count with an empty filtered view is a failed publish.
 
+Before changing single-select control fields, inspect their allowed choices. Do not invent states such as `Unpublished` or `Inactive`; use an existing valid value or stop for a schema decision. Treat the complete set of fields used by the view filter as one publication-control tuple. Changing `Published` alone is insufficient when the view also filters on `Status` or `Record State`.
+
 ## Generic schema audit
 
 Treat schema audit as a distinct step, not just a quick glance at field names.
@@ -494,9 +496,12 @@ For taxonomy-only updates, preserve Airtable record identity when possible. Patc
 
 For capability-only updates on compact viewers, derive an `Id`, `Tech Capabilities` artifact. Prefer exactly three high-signal semicolon-delimited labels around 16 characters or fewer each, PATCH only those fields, and verify publish state, AI Context, attachments, and record identity afterward.
 
-For publish-state changes, PATCH only the stable key and `Published`, using a
-real boolean. If the same bounded operation also fills `AI Context`, an
-`Id`, `AI Context`, `Published` artifact is acceptable; verify both fields and
+For publish-state changes, PATCH only the stable key plus every control field
+required by the destination view, using real typed values. For example, a
+retirement may require `Published=false`, `Status=Retired`, and
+`Record State=Retired`; derive the actual tuple from the view and schema instead
+of assuming these labels exist. If the same bounded operation also fills
+`AI Context`, include it in the narrow artifact; verify every changed field and
 confirm that logos and record identity remain unchanged.
 
 If rows must be removed, prefer a targeted delete of only rows absent from the trusted source over deleting every record and reuploading the survivors.
@@ -509,6 +514,7 @@ After an API upload or partial update:
 - read back a small sample of the intended fields, such as `Id`, `Name`, and `AI Context`
 - for enrichment updates, count created vs updated records and confirm the update did not create duplicates
 - verify destination-view count and every publish-control or grouping field required for rows to appear downstream
+- for retirement, verify the full table still contains the preserved records, the published view excludes them, and no unrelated records left the view
 - verify preserved original taxonomy helper fields or context markers when reclassification was part of the request
 - record the verification in the progress log
 

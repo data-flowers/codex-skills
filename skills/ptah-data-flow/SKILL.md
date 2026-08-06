@@ -1,6 +1,6 @@
 ---
 name: ptah-data-flow
-description: Use when a user needs to turn a rough list, appended seed file, folder of raw data, CSV, HTML export, nested list, markdown, PDF, event-heavy Airtable base, or broken Ptah publish flow into a clean Ptah-ready dataset. Also use for published-state maintenance, compact taxonomy or capability labels, model-backed curation, Ptah Airtable connection setup, gateway or custom-domain deployment, and contrast-safe logo or image attachment repair. This skill treats Airtable as storage and publish plumbing, not the main editing surface.
+description: Use when a user needs to turn a rough list, appended seed file, folder of raw data, CSV, HTML export, nested list, markdown, PDF, event-heavy Airtable base, or broken Ptah publish flow into a clean Ptah-ready dataset. Also use for published-state maintenance, website-liveness audits and retirement, compact taxonomy or capability labels, model-backed curation, Ptah Airtable connection setup, gateway or custom-domain deployment, and contrast-safe logo or image attachment repair. This skill treats Airtable as storage and publish plumbing, not the main editing surface.
 ---
 # ptah-data-flow
 
@@ -34,6 +34,7 @@ This skill is for running local OODA loops around that workflow. It should help 
 - If the source is website-backed and some rows come back sparse or blocked, record those rows explicitly and support a targeted refresh pass later instead of forcing a full rebuild.
 - After a network-context change such as VPN, proxy, or auth improvement, prefer a targeted re-fetch of sparse rows before declaring the source permanently weak.
 - For post-publish maintenance, prefer the smallest safe delta: detect missing, malformed, or stale rows; generate only those rows; patch only the intended field(s); then re-export and verify the remote result.
+- Treat website health, entity operating status, and logo health as separate signals. A failed homepage does not prove that the entity is inactive or that an existing attachment is broken.
 - Do not pull logos by default. Unless the user explicitly asks for logos or image attachments, do not research, fetch, download, generate, convert, optimize, upload, replace, remove, or completeness-audit them. Leave new `Logo` values blank and preserve existing Airtable attachments by omitting `Logo` from imports and PATCH payloads. A `Logo` field in the source or target schema does not count as an instruction to populate it.
 - Only for explicitly requested attachment work, use the fast path in `references/airtable-boundary.md`: find the live record id, choose the official stable image URL, compact oversized assets first, PATCH only `Logo`, and verify metadata plus the Airtable-served image or thumbnail.
 - Before creating any logo fallback, exhaust first-party asset discovery: inspect HTML icon links, web manifests, metadata, CSS/JS references, official asset directories, and reasonable same-origin sibling filenames and formats. Fetch and visually compare all plausible candidates; a tiny root favicon is not proof that no better official asset exists. Prefer a verified official asset, otherwise leave `Logo` blank. Never invent or publish a text wordmark or generic mark without explicit user approval.
@@ -66,6 +67,7 @@ This skill is for running local OODA loops around that workflow. It should help 
    - [references/rewrite-runners.md](references/rewrite-runners.md) when you need to adapt a Gemini batch rewrite runner into the active dataset working area
    - [references/airtable-boundary.md](references/airtable-boundary.md) when publish, schema, PAT, base, table, view, or connection repair is in play
    - [references/gateway-deployment.md](references/gateway-deployment.md) when Ptah connection activation, a gateway repository, Cloudflare Pages, a custom hostname, DNS, or production deployment is in play
+   - [references/website-liveness.md](references/website-liveness.md) when company URLs need auditing, correction, retirement, or publication-state maintenance
    - [references/attachment-images.md](references/attachment-images.md) only when the user explicitly asks for logos or image attachments to be fetched, compacted, refreshed, or synchronized to Airtable
    - [references/artifacts.md](references/artifacts.md) when you need the allowed working-area model or bundled tool entrypoints
    - [references/field-notes.md](references/field-notes.md) when a prior project surfaces reusable workflow mistakes, source-of-truth changes, taxonomy redundancy, or Airtable update behavior
@@ -275,6 +277,7 @@ Examples:
 - taxonomy no longer fits
 - new rows need merge and dedupe
 - a newly added Airtable row needs `Description` or `AI Context`
+- company websites may be dead, moved, parked, or automation-blocked
 - viewer complaints need root-cause isolation
 
 Incremental maintenance rule:
@@ -282,6 +285,7 @@ Incremental maintenance rule:
 - if the user says a new row was added or one field needs refreshing, do not regenerate the whole dataset by default
 - if a seed file gained entries, diff the raw seeds against preserved source aliases, canonicalize only the additions, dedupe them against existing entities, assign stable new ids, and publish only the resulting delta before running a full-count verification
 - re-export the current remote target first
+- for website-liveness or retirement work, read [references/website-liveness.md](references/website-liveness.md), preserve retired rows in the working dataset and Airtable archive, and exclude them only from the published Ptah artifact or view
 - identify target rows by record id, missing target field, stale hash, or explicit user-named entity
 - generate only those rows, using existing caches where source fields did not change
 - patch only the target field, never untouched fields such as `Logo`

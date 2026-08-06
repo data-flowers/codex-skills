@@ -102,6 +102,24 @@ Classify enrichment as direct-source, supported-fallback, or limited. Keep per-r
 
 Published visibility may depend on fields outside the 12-field contract. Inspect and verify view filters plus control fields such as publish flags, status, record state, and grouping. Verify the filtered destination view count, not only the underlying table count.
 
+## Website Liveness Is Evidence-Tiered
+
+Do not retire an entity from one failed request. Retry scheme and hostname variants, follow redirects, distinguish DNS failure from TLS or automation blocking, and corroborate ambiguous results with an independent resolver or browser-backed source. Treat 401, 403, 429, timeouts, and bot challenges as manual review by default. Separate active, correctable URL, parked suspect, confirmed broken, and manual-review outcomes.
+
+Research rebrands, acquisitions, and successor domains before retiring a row. Update `Website` when the same entity has moved, but reject a similar-looking domain when it belongs to another product. Record evidence and a reason for every correction or retirement.
+
+## Retirement Preserves History
+
+Retirement is normally a publication-state change, not deletion. Keep the row and its source taxonomy, descriptions, attachments, and stable id in the canonical dataset and underlying Airtable table. Exclude it from the filtered view and Ptah publish artifact through the complete valid control-field tuple, then verify both archive count and published count.
+
+## Filtered-view Change Detection
+
+A timestamp query scoped to a filtered view cannot see a record after that record leaves the view. After retirement or removal, test the gateway's update detector and live provider endpoint rather than assuming the cache refreshed. Prefer an explicit cache refresh or table-wide change signal. If none exists, use a reversible update to one still-published signal record only as a last resort: snapshot untouched fields, change the narrow control field, restore it immediately, verify preservation, and record the resulting visible timestamp.
+
+## Website and Logo Health Are Independent
+
+A dead homepage does not prove an Airtable-served logo attachment is broken, and a live homepage does not prove its logo asset has adequate contrast or remains reachable. Keep website-liveness maintenance field-scoped; route attachment failures through the logo workflow only when logo work is explicitly requested.
+
 ## Gateway Deployment Scope
 
 A gateway name does not imply SSH. Resolve the real runtime, repository, hosting project, and deployment surface first. Inspect dirty state and deployment scripts for unrelated changes and companion services. Use the narrowest supported deployment path, and require explicit approval before publishing a broader dirty snapshot.

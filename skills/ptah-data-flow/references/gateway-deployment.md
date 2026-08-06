@@ -33,6 +33,7 @@ Inspect Airtable and resolve the actual table and view names before building the
 Post-save verification must include:
 
 - saved connection id
+- exact live provider endpoint returned or configured by the connection; do not infer its route from the hostname
 - native timestamp strategy accepted by the gateway
 - provider count equal to the intended published count
 - unique provider ids
@@ -99,6 +100,15 @@ Require:
 
 Hosting aliases may update before custom-domain routing or caches converge. Direct access to the new config file is not sufficient. Re-read the custom-domain manifest until it contains the new hostname mapping, and compare response headers or the immutable deployment URL when diagnosing propagation.
 
+After a row leaves a filtered Airtable view, a view-scoped `Updated At` query may no longer observe the change that removed it. For retirement or deletion maintenance:
+
+1. call the gateway's update detector
+2. read the exact live provider endpoint and verify the retired ids are absent
+3. prefer an explicit cache-refresh mechanism when the endpoint is stale
+4. only when no refresh hook exists, use a reversible update to one still-published signal record, restore it immediately, and verify unrelated fields before reading the provider endpoint again
+
+Do not declare a removal live from Airtable state alone.
+
 ## Record deployment evidence
 
 Write a compact JSON or Markdown artifact containing:
@@ -110,6 +120,7 @@ Write a compact JSON or Markdown artifact containing:
 - provider count and unique-id count
 - category count
 - endpoint status results
+- change-detection result and cache status after any filtered-view removals
 - release checks passed
 - whether companion services were deployed
 - whether the deployed configuration is present in canonical source
