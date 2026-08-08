@@ -306,6 +306,30 @@ reason no publishable mark exists. Acceptance requires:
   Logo.dev, or other external URL remains in the live provider feed
 - zero legacy, failed, empty, or externally hosted assets remain
 
+Use four separate counts in the machine report: published rows, source attachment
+rows, durable gateway asset rows, and reviewed source blanks. Require source
+attachments to equal durable gateway assets; never infer success from the number
+of nonblank rendered cards because website and Logo.dev fallbacks can hide loss.
+After one mismatch, run the same source-versus-gateway reconciliation across all
+related maps or connections rather than treating the incident as local.
+
+Classify every gap before repair. Check sanitized gateway cache status and the
+source attachment metadata, never expiring delivery URLs:
+
+- SVG or ICO attachments indicate a local-normalization omission; convert and
+  re-upload raster WebP before refreshing.
+- A large refresh that publishes an initial prefix and then reports many fetch,
+  optimizer, or unknown failures indicates a likely per-request operation-budget
+  exhaustion. Preserve the last complete generation and rerun only through a
+  bounded resumable refresh.
+- A few scattered failures require attachment-specific MIME, byte-size, decode,
+  redirect, and optimizer inspection.
+
+Do not accept a refresh merely because records, categories, or some assets were
+published. Store the coverage report beside the attachment manifest and make the
+regular audit exit nonzero on unexplained loss, stale exceptions, or inaccessible
+map targets.
+
 After machine checks pass, use the real viewer to inspect a labeled sample on
 its actual light and dark surfaces. Always include user-reported companies,
 common names, redirects, rebrands, acquisitions, Logo.dev name matches, manually

@@ -67,6 +67,7 @@ Use this skill to onboard, repair, extend, publish, or maintain Ptah data.
 - For explicit logo work, discover first-party assets before fallbacks. Never invent a mark without approval.
 - Validate the current official domain before Logo.dev lookup. Prefer domain lookup with placeholders disabled; quarantine name matches until entity and visual review pass.
 - Audit populated and blank rows. Keep a reviewed exception ledger, fail on unexpected blanks, and fail on stale exceptions.
+- After any gateway logo loss, reconcile source attachments against durable published assets for every related map; keep intentional source blanks as a separate count.
 - Normalize reviewed sources locally to sRGB WebP, preserve aspect ratio, never upscale, default to a 256-pixel ceiling, and keep a content-hashed manifest.
 - Verify light/dark and thumbnail visibility. Use a reviewed contrast card only when the official mark needs it.
 - Pilot the largest asset, PATCH only the attachment field, stop on the first mismatch, and verify served bytes plus unrelated-field preservation.
