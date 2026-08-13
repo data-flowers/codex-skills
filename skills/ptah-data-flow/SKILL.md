@@ -14,7 +14,8 @@ Use this skill to onboard, repair, extend, publish, or maintain Ptah data.
 - Treat Airtable as storage and publish plumbing, not the primary editing model.
 - Preserve raw source labels, initial classifications, stable source ids, and final Ptah classifications as distinct data.
 - Inspect full-dataset distributions before taxonomy, curation, or cleanup decisions and perform a second look after each meaningful stage.
-- Prefer the smallest safe delta after first publish. Patch only intended fields and verify unrelated-field preservation.
+- Prefer the smallest safe delta after first publish. For routine narrow maintenance, preserve unrelated fields by omitting them from the payload and verify the intended fields after write.
+- Treat source registration types, ownership, and legal status as evidence rather than final taxonomy. Classify by primary organizational function and operating model unless the user defines another axis.
 - Keep website health, entity operating status, publication state, and logo health as separate signals.
 - Audit placeholder, individual, and non-organization registrations before setting publication controls. Never blanket-publish an event export.
 - Store secrets in an ignored working-area `.env`; never print or record secret values.
@@ -65,6 +66,8 @@ Before Stage 3 and Stage 5, run `scripts/audit_ptah_dataset.py` or an equivalent
 - Record prompt, output, cached token counts, retries, model, stage, and cache hit or miss when the API exposes usage metadata.
 - Batch structurally identical requests when validation can still prove every id is returned exactly once.
 - Do not repeat derived `AI Context` in taxonomy prompts when a concise description already supplies the same evidence. Include richer context only for sparse rows.
+- Do not classify a boundary row from a lossy one-sentence rewrite when primary evidence contains decision-bearing identity or operating-model language. Carry those facts into the taxonomy packet or inspect the source directly.
+- Do not award high taxonomy confidence merely because a mapped source type exists. Require agreement between the source type and grounded functional evidence, and make confirmation guards symmetric so explicit function can correct a misleading source type.
 - Use deterministic distribution checks for complete-dataset review; send only low-confidence, boundary, sparse, or oversized-bucket cases to a second model pass.
 - Never use a full model pass merely to fill placeholders. Leave blocked fields pending and record the blocker.
 
@@ -82,10 +85,12 @@ Before Stage 3 and Stage 5, run `scripts/audit_ptah_dataset.py` or an equivalent
 
 ## Airtable and gateway boundary
 
-- Inspect the actual base, table, view, filters, publish controls, and field types before writes.
+- Inspect the actual base, table, view, filters, publish controls, and field types before first publish, when the saved boundary is stale or ambiguous, or when remote behavior is surprising. Reuse verified state for routine maintenance on a known clean table.
 - `Updated At` must be native Airtable `lastModifiedTime`; omit it from row payloads.
 - Never use full-record updates for single-field maintenance.
 - Preserve existing attachments by omitting `Logo` from general imports and upserts.
+- For routine narrow maintenance on a known clean table, do not create guarded before-state snapshots, old-value guard ledgers, unrelated-field hash comparisons, or rollback CSVs by default. Build the narrow payload, optionally use the bundled dry run for schema and payload validation, write it, then read back intended fields and counts.
+- Use before-state snapshots, guarded comparisons, or rollback artifacts only for destructive changes, schema mutation, attachment replacement, publication/view-membership changes, ambiguous or stale remote state, explicit user requests, or another concrete high-risk condition.
 - Prefer one consolidated core-data patch, one attachment pass, one gateway refresh, and one final acceptance run when requirements are known together.
 - Verify expected count, unique ids, taxonomy, profiles, publication state, attachments, gateway-local assets, and representative browser rendering.
 

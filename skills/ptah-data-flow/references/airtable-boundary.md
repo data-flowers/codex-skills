@@ -310,16 +310,18 @@ Use this when the table is already published and the user asks to update one row
 Default sequence:
 
 1. read the progress log for the current Airtable URL, ids, PAT status, and source-of-truth paths
-2. re-export the current view from Airtable
-3. identify the smallest target set:
+2. identify the smallest target set from the canonical local data and the user's requested change:
    - explicit record id
    - explicit entity name
    - rows where the target field is blank
    - rows whose source-field hash changed since the cached generation
-4. generate or repair only those rows
-5. validate locally
-6. PATCH Airtable by record id with only the intended changed field(s)
-7. re-export Airtable and verify the remote values
+3. generate or repair only those rows
+4. validate locally and derive a payload containing only the stable merge key and intended changed fields
+5. optionally run the bundled dry run for schema and payload validation
+6. PATCH Airtable by record id or stable merge key with only the intended changed field(s)
+7. read back the intended fields, record count, and relevant publication controls
+
+For this routine path, do not build a custom guarded remote preflight, before-state hash snapshot, old-value ledger, or rollback CSV. Narrow field omission is the preservation mechanism. Add heavier controls only for destructive operations, schema mutation, attachment replacement, publication or view-membership changes, ambiguous/stale remote state, an explicit user request, or another concrete high-risk condition.
 
 When a local seed list gained entries:
 
@@ -431,7 +433,7 @@ SVG/ICO conversion is always a transformed-attachment workflow. Run the local
 prepare phase first, then upload and attach the converted raster bytes. A public
 SVG/ICO URL is not a valid fast-path attachment payload.
 
-Preservation checks after maintenance:
+Preservation checks after attachment maintenance:
 
 - compare untouched fields for every patched record before and after upload when a local pre-patch export exists
 - always check attachment presence/count for `Logo` on touched rows
@@ -503,6 +505,8 @@ Default order for API updates:
 4. patch/upsert only those fields
 5. read back count and a small field sample
 
+Do not add a separate guarded remote preflight or rollback artifact to routine narrow updates on a known clean table. The generic dry run is optional validation, not a requirement to snapshot remote rows before every write.
+
 Full replacement is allowed only when one of these is true:
 
 - the user explicitly asks to replace or discard existing rows
@@ -530,6 +534,7 @@ After an API upload or partial update:
 
 - inspect the table or view again to verify record count
 - read back a small sample of the intended fields, such as `Id`, `Name`, and `AI Context`
+- for routine narrow maintenance, verify the intended remote values and relevant counts; do not require unrelated-field hash comparison when unrelated fields were omitted from the payload
 - for enrichment updates, count created vs updated records and confirm the update did not create duplicates
 - verify destination-view count and every publish-control or grouping field required for rows to appear downstream
 - for retirement, verify the full table still contains the preserved records, the published view excludes them, and no unrelated records left the view

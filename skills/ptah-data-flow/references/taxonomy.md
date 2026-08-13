@@ -6,6 +6,7 @@ Use this reference whenever `Category` or `Subcategory` is under discussion.
 
 - [Default model](#default-model)
 - [Entry gate](#entry-gate)
+- [Evidence hierarchy and conflict resolution](#evidence-hierarchy-and-conflict-resolution)
 - [Required sequence](#required-sequence)
 - [Source taxonomy preservation](#source-taxonomy-preservation)
 - [Shape constraints](#shape-constraints)
@@ -42,6 +43,26 @@ verified profile text, or equivalent attributable evidence—not names alone.
   evidence limitations.
 - When a provisional name-only taxonomy already exists, re-evaluate low-confidence
   and boundary rows after descriptions materially improve.
+
+## Evidence hierarchy and conflict resolution
+
+Classify the axis the taxonomy claims to represent. When `Category` means organizational role or entity type, use this precedence:
+
+1. explicit primary identity and function from an official source
+2. operating model: what the organization repeatedly does and how it serves or convenes others
+3. grounded description and representative programs, services, groups, or facilities
+4. ownership, legal form, nonprofit status, or public-sector affiliation as qualifiers
+5. event-directory registration type as a noisy prior
+
+Do not let a lower-ranked signal override explicit functional evidence. In particular:
+
+- A publicly owned research institute, laboratory, or applied R&D center remains a research organization when research is its primary function. Use a government or trade class for administration, regulation, public authority, diplomacy, or trade-promotion functions.
+- A nonprofit or civic organization that primarily convenes an industry ecosystem through members, clusters, working groups, events, partnerships, or professional opportunities is an industry network. Use a civic, trust, standards, or governance class when those public-interest functions are primary and network convening is secondary.
+- A source label such as `Company`, `Government`, `Other`, or `AI Provider` does not by itself justify high confidence. High confidence requires grounded evidence that agrees on the primary function.
+
+Preserve decision-bearing evidence through normalization. A fluent one-sentence summary can erase terms such as `membership network`, `cluster`, `working group`, `research institute`, or `laboratory` while emphasizing generic words such as `nonprofit`, `policy`, or `government`. For boundary rows, classify from the source evidence packet or include a compact `identity`, `operating model`, and `source type` tuple alongside the normalized description.
+
+Treat final confirmation as evidence review, not source-type ratification. Randomized candidates reduce positional bias but do not fix a prompt that declares the registration type authoritative. When deterministic guards exist, make them symmetric: explicit functional evidence must be able to require or escalate a correction, not merely permit a model-selected change. Send unresolved status-versus-function conflicts to review instead of silently retaining the current value.
 
 ## Required sequence
 
@@ -163,6 +184,14 @@ This is normal. Compare them. Do not pick one just because the header looks best
 ### Pattern: raw source has multi-tag fields
 
 This is common in Crunchbase-like data. Use those fields as source material, not final labels.
+
+### Pattern: registration status conflicts with organizational function
+
+Separate status from function before classification. Record public ownership, nonprofit form, startup registration, or event-directory type as preserved source metadata. Assign the navigational taxonomy from the primary function and operating model, then record the conflict and resolution reason in the review ledger.
+
+### Pattern: a normalized summary changes the apparent class
+
+Compare the summary with the strongest official identity and operating-model evidence. If the summary omits the facts that distinguish neighboring classes, revise the summary or pass those facts separately. Do not use translation or compression as an unrecorded taxonomy transform.
 
 ### Pattern: user has their own labels
 
