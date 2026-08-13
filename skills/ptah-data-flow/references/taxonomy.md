@@ -5,6 +5,7 @@ Use this reference whenever `Category` or `Subcategory` is under discussion.
 ## Contents
 
 - [Default model](#default-model)
+- [Entry gate](#entry-gate)
 - [Required sequence](#required-sequence)
 - [Source taxonomy preservation](#source-taxonomy-preservation)
 - [Shape constraints](#shape-constraints)
@@ -27,6 +28,20 @@ Examples:
 - `Subcategory = Venture Capital`
 
 This default is strong because it survives onboarding, maintenance, and mixed-source datasets better than raw source tags.
+
+## Entry gate
+
+Measure grounding coverage before assigning the final taxonomy. Use descriptions,
+verified profile text, or equivalent attributable evidence—not names alone.
+
+- Run `scripts/audit_ptah_dataset.py --require-gate taxonomy` with a declared
+  grounding threshold.
+- If the gate fails and enrichment is still feasible, enrich sparse rows before
+  final taxonomy assignment.
+- If the user accepts a sparse-source taxonomy, record the override and the
+  evidence limitations.
+- When a provisional name-only taxonomy already exists, re-evaluate low-confidence
+  and boundary rows after descriptions materially improve.
 
 ## Required sequence
 

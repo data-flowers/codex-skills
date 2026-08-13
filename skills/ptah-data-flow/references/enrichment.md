@@ -11,7 +11,8 @@ Credential rule:
 
 - this skill does not manage secrets for the user
 - it should check whether the required key is already available in the environment or current run context
-- if the user refers to an existing Gemini key or a local project that has one, find that local key and copy `GEMINI_API_KEY` or the equivalent provider variable into the current working area's `.env`; do not ask the user to paste it again
+- if the user explicitly names an existing Gemini key source or local project, copy `GEMINI_API_KEY` or the equivalent provider variable into the current working area's `.env`; do not ask the user to paste it again
+- a generic reference such as “the key” does not authorize searching or testing unrelated project credentials; follow [credential-sourcing.md](credential-sourcing.md)
 - if Gemini-backed rewrite is clearly required and `GEMINI_API_KEY` is missing, ask for it early
 - if `EXA_API_KEY` is missing, fall back to ordinary web search unless the user explicitly wants Exa or the job clearly needs Websets-style scale
 - never print copied API keys, paste them into progress logs, or leave them only in inline shell commands
@@ -36,6 +37,11 @@ Default order:
 6. review distributions
 7. publish only after the intended curation pass is complete
 
+For event exports, preserve attendee affiliations as a research-only discovery
+graph before stripping contacts from the organization dataset. Read
+[event-affiliation-enrichment.md](event-affiliation-enrichment.md) when names,
+roles, locations, or authenticated profiles can resolve missing organizations.
+
 ## Evidence tiers and coverage
 
 Assign every enriched row one evidence tier:
@@ -45,6 +51,10 @@ Assign every enriched row one evidence tier:
 - `limited`: available evidence remains too weak for confident detail
 
 Keep the tier, evidence URLs, and retrieval status in the working dataset or a sidecar. Report counts for all tiers before curation. For limited rows, use only claims the evidence supports, keep uncertainty visible in provenance, and do not manufacture a polished comprehensive profile.
+
+Before accepting descriptions, audit generic platform metadata, repeated
+boilerplate, login/error text, and entity-name conflicts. A LinkedIn or directory
+page may support identity resolution without providing a publishable description.
 
 Refresh only sparse or failed rows after a network, authentication, or retrieval improvement. Do not rebuild successful direct-source rows unnecessarily.
 

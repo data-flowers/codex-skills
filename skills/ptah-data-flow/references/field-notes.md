@@ -70,9 +70,45 @@ When adapting Gemini runners:
 
 Credential discovery should report only presence and path, never secret values. Avoid commands that can print token values to terminal output.
 
+An ambiguous request such as “use the PAT” is not authorization to enumerate or
+test tokens from unrelated project environments. Use the active environment or
+workspace `.env`; otherwise require the user to name the credential source.
+
 ## Progress Log Hygiene
 
 The progress log should preserve failed repair attempts as findings, but once the user resolves a blocker, rewrite current stage and next moves so future sessions do not treat resolved work as still pending.
+
+Treat state drift as a failed handoff. Recompute counts and hashes after model
+materialization, schema repair, upload, and remote verification instead of
+copying values from an earlier report.
+
+## Grounding Before Taxonomy
+
+Stage numbers must not force a name-only taxonomy when descriptions or affiliation
+evidence can still be recovered. Measure taxonomy readiness after canonicalization,
+enrich sparse evidence before final classification, and re-evaluate any provisional
+taxonomy after descriptions materially improve.
+
+## Event Affiliation Graphs
+
+Event exports often carry the best identity evidence in attendee profiles rather
+than organization rows. Preserve a research-only attendee-to-organization sidecar,
+use role, location, and authenticated profile evidence to resolve candidate sites,
+and retroactively audit earlier guesses when stronger sources become available.
+Do not publish attendee fields as organization attributes.
+
+## Host-platform Description Traps
+
+A social or directory profile can verify identity while its metadata describes the
+platform itself. Reject generic LinkedIn, Facebook, login, search, cookie, registry,
+and error-page text as organization descriptions. Flag repeated description bodies
+across three or more entities for review.
+
+## GUI Import Count Gate
+
+A CSV import preview may count the header as a record until “Exclude first row” is
+enabled. Require the preview count to match the verified manifest exactly and cancel
+an unexplained off-by-one import rather than repairing it afterward.
 
 ## Source Invalidation and Provenance
 

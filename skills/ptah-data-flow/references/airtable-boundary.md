@@ -53,8 +53,11 @@ Do not assume base creation over API in the default workflow.
 
 Default publish path:
 
-- GUI CSV import first
-- if the user simply says they want Airtable, this is the default answer unless an existing remote Airtable target is already recorded in the progress log
+- use the API helpers when the target is known and an authorized PAT is already
+  present in the current workspace or explicitly named source
+- otherwise use GUI CSV import; do not search unrelated projects for a working PAT
+- if the user simply says they want Airtable, default to GUI guidance unless an
+  existing remote target and authorized PAT are already recorded in current state
 
 Remote-boundary path:
 
@@ -92,6 +95,11 @@ After inspecting the Airtable schema, create a separate upload artifact when nee
 - omit fields that Airtable manages, such as `Updated At`
 - omit or defer fields whose source values do not match the remote field type, such as a free-text capability list going into `multipleSelects`
 - include only a stable merge key plus one enriched field for partial updates, such as `Id` and `AI Context`
+
+Create a verification manifest beside the upload artifact. Record exact row and
+unique-id counts, intended create/update/skip counts, omitted fields, control
+field values, placeholder exclusions, and the expected destination-view count.
+Treat `Id` as text in both the artifact and remote schema.
 
 Record both artifacts separately in the progress log. Do not treat an upload-safe subset as a replacement for the canonical local Ptah artifact.
 
@@ -182,6 +190,10 @@ Common examples include:
 Resolve the view's filter conditions when the available API or authenticated UI exposes them. Otherwise infer required states from existing rows, view behavior, or explicit user instructions and record the assumption.
 
 Set each required control field deliberately with its real Airtable type. After upload, verify the destination view count as well as the table count, and read back the control values across all published rows. A correct table count with an empty filtered view is a failed publish.
+
+Do not set `Published=true` across an event-derived dataset before auditing
+placeholder, individual, private, student, and “no organization” registrations.
+Record explicit include/exclude counts in the upload manifest.
 
 Before changing single-select control fields, inspect their allowed choices. Do not invent states such as `Unpublished` or `Inactive`; use an existing valid value or stop for a schema decision. Treat the complete set of fields used by the view filter as one publication-control tuple. Changing `Published` alone is insufficient when the view also filters on `Status` or `Record State`.
 
@@ -461,6 +473,12 @@ If the user refers to an existing Airtable key instead of pasting one, for examp
 - record only `Airtable PAT: present` in the progress log, plus the fact that the token was copied from a local named source if useful
 - do not print the token or keep using inline secret-bearing commands once the local `.env` exists
 
+If the user says only “use the PAT” and the active environment has no PAT:
+
+- do not enumerate or test credentials from unrelated projects
+- ask the user to name the authorized source or configure the active `.env`
+- read [credential-sourcing.md](credential-sourcing.md) for the shared rule
+
 If the user has no Airtable URL yet:
 
 - do not pretend remote inspection is possible
@@ -517,6 +535,16 @@ After an API upload or partial update:
 - for retirement, verify the full table still contains the preserved records, the published view excludes them, and no unrelated records left the view
 - verify preserved original taxonomy helper fields or context markers when reclassification was part of the request
 - record the verification in the progress log
+- reconcile the compact state file in the same successful operation; remove
+  resolved blockers and stale next actions
+
+After a GUI CSV import:
+
+- enable **Exclude first row in import** when the CSV contains headers
+- map every intended field and confirm omitted fields were not recreated
+- require the preview count to equal the manifest count before selecting Import
+- cancel rather than accepting an unexplained off-by-one count
+- verify `Id` remains text and `Updated At` remains `lastModifiedTime`
 
 ## Share step for Ptah connection
 
@@ -696,6 +724,8 @@ Examples of field semantics:
 - confirm field types
 - confirm required boundary fields
 - confirm base/table/view target
+- run the dataset gate and resolve publication eligibility for non-organizations
+- write an upload manifest with exact expected create/update/skip and view counts
 - for a new table, audit native `Updated At` before importing an upload artifact that omits it
 
 ### During repair
@@ -715,10 +745,15 @@ Examples of field semantics:
 - verify record count
 - verify a few rows against the working dataset
 - rerun the schema audit and confirm `Updated At` remains `lastModifiedTime`
+- compare remote counts and samples with the upload manifest
+- reconcile `ptah-data-flow.state.json` with verified local and remote facts
 - only then debug Ptah viewer behavior
 
 ## Bundled boundary tools
 
+- [`scripts/audit_ptah_dataset.py`](../scripts/audit_ptah_dataset.py)
+  - deterministic canonical, taxonomy-readiness, publication, upload, and state
+    freshness gate
 - [`scripts/inspect_airtable_table.mjs`](../scripts/inspect_airtable_table.mjs)
   - schema and record inspection
 - [`scripts/audit_airtable_schema.mjs`](../scripts/audit_airtable_schema.mjs)

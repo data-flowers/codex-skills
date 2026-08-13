@@ -25,6 +25,10 @@ Minimum stable row fields:
 - `updatedAt`
 - `aiContext`
 
+`id` is always an opaque text identifier. Preserve source ids when stable, add a
+dataset namespace when needed, and never allow Airtable or CSV inference to turn
+the identifier into a number.
+
 The canonical dataset may also carry dynamic enrichment or custom columns, but these fields are the stable spine.
 
 ## Downstream Ptah / Airtable fields
@@ -58,6 +62,9 @@ Rules:
 - Do not silently invent a substitute format just to fill the column.
 - Deterministic fact concatenation is acceptable in working notes or helper columns, but not as a silent replacement for final `AI Context`.
 - `Published` is an optional Airtable control field outside the 12-field Ptah contract. Retain it when the existing target or user requires it, write real booleans, and do not silently drop or default its state during a clean-table migration.
+- Decide `Published` only after entity-eligibility review. Event placeholders,
+  individuals, private registrations, students, and “no organization” values
+  must not inherit a blanket `true` default.
 - For compact viewers, shape `Tech Capabilities` as exactly three semicolon-delimited, high-signal labels per row and keep each label around 16 characters or fewer. Use a narrow `Id`, `Tech Capabilities` artifact for maintenance updates.
 
 ## Module boundary

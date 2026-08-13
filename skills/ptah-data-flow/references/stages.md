@@ -87,8 +87,20 @@ Exit criteria:
 
 - one working dataset exists
 - source identifiers are preserved
+- stable ids are opaque text, not inferred numeric values
 - entity kind is understood
 - obvious missingness and schema problems are known
+- placeholder, individual, and non-organization candidates are listed separately
+- taxonomy readiness is measured from grounded descriptions or equivalent evidence
+
+Taxonomy-readiness rule:
+
+- do not force a final taxonomy from names alone when descriptions or affiliation
+  evidence can still be recovered
+- when grounding coverage is below the project's declared threshold, perform the
+  source-enrichment portion of Stage 4 before entering Stage 3
+- record the threshold and any explicit override; do not silently treat a sparse
+  provisional taxonomy as final
 
 ## Stage 3: taxonomy design and assignment
 
@@ -103,6 +115,8 @@ Exit criteria:
 - initial, final, and original source classification layers are distinct when reclassification is requested
 - original source labels are preserved mechanically across all rows
 - label distribution has been reviewed and, if needed, revised
+- the taxonomy was assigned from sufficiently grounded rows, or a documented
+  sparse-source exception was reviewed
 
 ## Stage 4: curation and enrichment
 
@@ -128,6 +142,10 @@ Important:
 - if no such path is available yet, leave the field blank or clearly pending rather than fabricating an ad-hoc placeholder just to satisfy the 12-column shape
 - if the intended rewrite or enrich path is clear but blocked only by a missing credential, stop there, mark the blocker clearly, and ask for that credential
 - missing `EXA_API_KEY` is not a hard blocker by default; fall back to ordinary web search and keep provenance unless the user specifically asked for Exa
+- for event exports, preserve an attendee-to-organization research sidecar before
+  discarding contact columns; use affiliations to resolve entities without
+  publishing attendee details
+- reject generic host-platform metadata and repeated boilerplate as descriptions
 
 Exit criteria:
 
@@ -151,11 +169,19 @@ Important:
 - do not call a dataset fully publish-ready if the export still contains raw-source-only `Description` rows, deterministic placeholder `AI Context`, or other known curation gaps
 - default sequencing is to finish the intended curation pass before the first Airtable upload, unless the user explicitly wants a phased publish
 - if a curate step is still clearly available and not blocked, keep going rather than stopping at a draft boundary
+- audit publication eligibility before setting `Published`; placeholders,
+  individuals, private registrations, and “no organization” rows require an
+  explicit include/exclude decision
+- for GUI CSV import, exclude the header row, map every intended field, and
+  require the preview create/update count to match the verified upload manifest
+- reconcile `ptah-data-flow.state.json` after remote verification; clear resolved
+  blockers and replace stale next actions
 
 Exit criteria:
 
 - field order and types are confirmed
 - required boundary fields are correct
+- expected create, update, skip, unpublished, and filtered-view counts are explicit
 - `Updated At` was verified as `lastModifiedTime` both before and after first import into any new table
 - the published data is trustworthy enough to check in Ptah
 

@@ -32,6 +32,7 @@ If the folder contains multiple plausible datasets, establish a dataset-scoped w
 
 ### Workflow memory
 
+- `./ptah-data-flow.state.json`
 - `./ptah-data-flow.progress.md`
 - optional: `./ptah-data-flow.feedback.md`
 
@@ -59,6 +60,7 @@ The exact names can vary. What matters is that the agent treats one of them as t
 
 ### Bundled boundary tools
 
+- [`scripts/audit_ptah_dataset.py`](../scripts/audit_ptah_dataset.py)
 - [`scripts/inspect_airtable_table.mjs`](../scripts/inspect_airtable_table.mjs)
 - [`scripts/upsert_airtable_csv.mjs`](../scripts/upsert_airtable_csv.mjs)
 - [`scripts/optimize_airtable_attachments.py`](../scripts/optimize_airtable_attachments.py)

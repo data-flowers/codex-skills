@@ -29,6 +29,7 @@ questions without replaying project history.
     "tableId": "tbl...",
     "viewId": "viw...",
     "pat": "present",
+    "credentialSource": "active-workspace-env",
     "connectionId": "uuid",
     "gatewayOrigin": "https://example-map.data.flowers"
   },
@@ -48,12 +49,25 @@ questions without replaying project history.
 Rules:
 
 - Record secret status only (`present` or `missing`), never values.
+- Record only an authorized credential source label or path. Do not discover a
+  working token by testing unrelated project credentials.
 - Keep only the latest authoritative artifact for each concern.
 - Use stable ids, hashes, counts, and status enums rather than prose.
 - Update atomically after a stage succeeds. Do not advance state before
   verification passes.
+- Derive counts and hashes from the current artifacts; do not carry them forward
+  manually from an earlier report.
+- Remove resolved blockers and replace stale next actions in the same update that
+  records successful verification.
 - Include only one to three next actions and current blockers.
 - A newer direct inspection overrides stale state; update the file immediately.
+
+Before every final response, compare the state file with the canonical dataset,
+latest verification artifact, and remote inspection when applicable. Run
+`scripts/audit_ptah_dataset.py --state ./ptah-data-flow.state.json
+--require-gate publication ...` or an equivalent check. If counts, hashes,
+blockers, schema findings, or publication status disagree, reconcile the state
+before handing off.
 
 ## Historical progress log
 
