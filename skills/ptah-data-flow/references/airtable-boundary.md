@@ -2,6 +2,12 @@
 
 Use this reference when publish, schema, permissions, or connection repair is involved.
 
+Default operating assumption: one Ptah process on one computer is the only
+writer. On an already verified table, routine maintenance is a narrow local
+validation plus PATCH. A successful Airtable response completes the operation;
+do not add a separate readback or defensive workflow for concurrency that does
+not yet exist.
+
 ## Contents
 
 - [Airtable's role](#airtables-role)
@@ -14,7 +20,7 @@ Use this reference when publish, schema, permissions, or connection repair is in
 - [View semantics and control fields](#view-semantics-and-control-fields)
 - [Generic schema audit](#generic-schema-audit)
 - [Incremental Airtable maintenance](#incremental-airtable-maintenance)
-- [What to ask for before publish](#what-to-ask-for-before-publish)
+- [What to ask for before first remote publish](#what-to-ask-for-before-first-remote-publish)
 - [Update behavior for existing Airtable tables](#update-behavior-for-existing-airtable-tables)
 - [Post-upload verification](#post-upload-verification)
 - [Share step for Ptah connection](#share-step-for-ptah-connection)
@@ -96,12 +102,14 @@ After inspecting the Airtable schema, create a separate upload artifact when nee
 - omit or defer fields whose source values do not match the remote field type, such as a free-text capability list going into `multipleSelects`
 - include only a stable merge key plus one enriched field for partial updates, such as `Id` and `AI Context`
 
-Create a verification manifest beside the upload artifact. Record exact row and
-unique-id counts, intended create/update/skip counts, omitted fields, control
-field values, placeholder exclusions, and the expected destination-view count.
+For a first/full publish or another high-risk operation, create a verification
+manifest beside the upload artifact. Record exact row and unique-id counts,
+intended create/update/skip counts, omitted fields, control field values,
+placeholder exclusions, and the expected destination-view count.
 Treat `Id` as text in both the artifact and remote schema.
 
-Record both artifacts separately in the progress log. Do not treat an upload-safe subset as a replacement for the canonical local Ptah artifact.
+For a first/full publish, record both artifacts separately in the progress log.
+Do not treat an upload-safe subset as a replacement for the canonical local Ptah artifact.
 
 For Airtable row import, omitting `Updated At` is mandatory. The local canonical artifact may retain the blank column for the 12-field contract, but no GUI import or API upsert should use that column to create or populate the Airtable field.
 
@@ -189,7 +197,10 @@ Common examples include:
 
 Resolve the view's filter conditions when the available API or authenticated UI exposes them. Otherwise infer required states from existing rows, view behavior, or explicit user instructions and record the assumption.
 
-Set each required control field deliberately with its real Airtable type. After upload, verify the destination view count as well as the table count, and read back the control values across all published rows. A correct table count with an empty filtered view is a failed publish.
+Set each required control field deliberately with its real Airtable type. After a
+first/full publish or a control-field change, verify the destination view count
+as well as the table count, and read back the control values across all published
+rows. A correct table count with an empty filtered view is a failed publish.
 
 Do not set `Published=true` across an event-derived dataset before auditing
 placeholder, individual, private, student, and “no organization” registrations.
@@ -309,19 +320,32 @@ Use this when the table is already published and the user asks to update one row
 
 Default sequence:
 
-1. read the progress log for the current Airtable URL, ids, PAT status, and source-of-truth paths
+1. reuse the recorded Airtable target, stable ids, credential source, and canonical source path
 2. identify the smallest target set from the canonical local data and the user's requested change:
    - explicit record id
    - explicit entity name
    - rows where the target field is blank
    - rows whose source-field hash changed since the cached generation
 3. generate or repair only those rows
-4. validate locally and derive a payload containing only the stable merge key and intended changed fields
-5. optionally run the bundled dry run for schema and payload validation
+4. validate only the changed values, ids, and category/subcategory pairs locally
+5. update the canonical dataset
 6. PATCH Airtable by record id or stable merge key with only the intended changed field(s)
-7. read back the intended fields, record count, and relevant publication controls
+7. accept a successful Airtable response as completion and stop
 
-For this routine path, do not build a custom guarded remote preflight, before-state hash snapshot, old-value ledger, or rollback CSV. Narrow field omission is the preservation mechanism. Add heavier controls only for destructive operations, schema mutation, attachment replacement, publication or view-membership changes, ambiguous/stale remote state, an explicit user request, or another concrete high-risk condition.
+For this routine path, do not run a schema preflight, generic dry run, remote
+readback, full export, count check, whole-dataset distribution, state/hash
+reconciliation, browser check, or build a snapshot, manifest, guard ledger, or
+rollback CSV. Narrow field omission is the preservation mechanism. Add heavier
+controls only for a first/full publish, large import or delete, destructive
+operation, schema mutation, attachment replacement, publication or
+view-membership change, deployment, ambiguous/stale remote state, surprising API
+behavior, an explicit user request, or another concrete high-risk condition.
+
+If concurrent writers later become a real operating condition, fetch only the
+touched rows immediately before the PATCH and compare only the target fields
+with their previous canonical values. Patch matching rows and report conflicting
+rows without overwriting them. Do not introduce locks, global diffs, revision
+manifests, or full-table reconciliation for normally small concurrent changes.
 
 When a local seed list gained entries:
 
@@ -333,9 +357,8 @@ When a local seed list gained entries:
 5. assign stable ids only to truly new entities
 6. generate a new-row upload artifact and upload only that delta
 7. only when explicitly requested, handle new logos as a separate attachment delta
-8. re-read the full view and verify total ids, published state, AI Context, and
-   preservation of existing attachments; verify logo counts only when logo work
-   was explicitly in scope
+8. for a large batch or publish-state change, perform the applicable
+   comprehensive verification; otherwise trust the successful narrow PATCH
 
 For single-field updates, the PATCH payload must be narrow:
 
@@ -441,7 +464,7 @@ Preservation checks after attachment maintenance:
 - if an attachment count changes, stop and report the row ids before doing further writes
 - re-run the schema audit if the update touched boundary setup or if the remote behavior looks surprising
 
-## What to ask for before publish
+## What to ask for before first remote publish
 
 Priority rule:
 
@@ -463,7 +486,8 @@ If the user provides an Airtable URL:
 - once the PAT is received, prefer storing it in a working-area `.env` file that is excluded from git and run API helpers through environment variables rather than repeating the token inline in commands
 - do not paste raw PAT values into the progress log or routine handoff notes; record only whether the token is present and where the local `.env` lives if that path matters
 - do not continue with remote inspection or upload until the PAT is available
-- once the PAT is available, inspect and audit the remote schema before upload or Ptah connection work
+- once the PAT is available, inspect and audit the remote schema before the first
+  upload or Ptah connection work; reuse the verified boundary afterward
 - if the audit shows a contract mismatch, use the bundled mutation helper instead of asking the user to rename fields by hand
 
 If the user refers to an existing Airtable key instead of pasting one, for example "use the Airtable token from aipanic" or "use the existing PAT from euro-stack":
@@ -499,13 +523,13 @@ Prefer minimal, targeted Airtable changes. When the table already contains recor
 
 Default order for API updates:
 
-1. build the canonical local artifact
+1. validate the changed values locally and update the canonical artifact
 2. derive an upload-safe subset with only the merge key and changed fields
-3. dry-run schema validation
-4. patch/upsert only those fields
-5. read back count and a small field sample
+3. patch/upsert only those fields
+4. accept a successful API response and stop
 
-Do not add a separate guarded remote preflight or rollback artifact to routine narrow updates on a known clean table. The generic dry run is optional validation, not a requirement to snapshot remote rows before every write.
+Do not add a schema preflight, dry run, guarded remote preflight, readback, or
+rollback artifact to routine narrow updates on a known clean table.
 
 Full replacement is allowed only when one of these is true:
 
@@ -516,7 +540,7 @@ Full replacement is allowed only when one of these is true:
 
 For taxonomy-only updates, preserve Airtable record identity when possible. Patch `Category`, `Subcategory`, and any regenerated text fields against a stable key such as `Id`; do not resend attachment, multiselect, or Airtable-managed fields unless they actually need to change.
 
-For capability-only updates on compact viewers, derive an `Id`, `Tech Capabilities` artifact. Prefer exactly three high-signal semicolon-delimited labels around 16 characters or fewer each, PATCH only those fields, and verify publish state, AI Context, attachments, and record identity afterward.
+For capability-only updates on compact viewers, derive an `Id`, `Tech Capabilities` artifact. Prefer exactly three high-signal semicolon-delimited labels around 16 characters or fewer each and PATCH only those fields.
 
 For publish-state changes, PATCH only the stable key plus every control field
 required by the destination view, using real typed values. For example, a
@@ -530,18 +554,21 @@ If rows must be removed, prefer a targeted delete of only rows absent from the t
 
 ## Post-upload verification
 
-After an API upload or partial update:
+Do not perform a separate verification pass after routine narrow maintenance on
+a known clean table. Airtable's successful response is the confirmation.
+
+After a first/full publish, large import or delete, schema or attachment change,
+publication/view-membership change, deployment, or surprising response:
 
 - inspect the table or view again to verify record count
 - read back a small sample of the intended fields, such as `Id`, `Name`, and `AI Context`
-- for routine narrow maintenance, verify the intended remote values and relevant counts; do not require unrelated-field hash comparison when unrelated fields were omitted from the payload
 - for enrichment updates, count created vs updated records and confirm the update did not create duplicates
 - verify destination-view count and every publish-control or grouping field required for rows to appear downstream
 - for retirement, verify the full table still contains the preserved records, the published view excludes them, and no unrelated records left the view
 - verify preserved original taxonomy helper fields or context markers when reclassification was part of the request
-- record the verification in the progress log
-- reconcile the compact state file in the same successful operation; remove
-  resolved blockers and stale next actions
+- record the verification when it represents a stage milestone or material decision
+- reconcile the compact state file when the operation changes stage, publication
+  status, remote boundary, blockers, or next actions
 
 After a GUI CSV import:
 
@@ -719,7 +746,7 @@ Examples of field semantics:
 
 ## Boundary workflow
 
-### Before publish
+### Before first or full publish
 
 - confirm the user has a PAT with the required scopes
 - confirm the PAT has access to the target base or workspace
@@ -745,7 +772,7 @@ Examples of field semantics:
 - If the Airtable endpoint or helper enforces a lower per-request record limit, keep the 100-record work batch but subchunk internally to the endpoint-safe request size.
 - Keep upload output phrased in both layers when relevant: work batches for operator progress, API requests for rate-limit/debugging clarity.
 
-### After publish
+### After first or full publish
 
 - verify record count
 - verify a few rows against the working dataset

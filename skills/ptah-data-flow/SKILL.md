@@ -13,8 +13,9 @@ Use this skill to onboard, repair, extend, publish, or maintain Ptah data.
 - Treat `Id` as an opaque text identifier even when every current value looks numeric.
 - Treat Airtable as storage and publish plumbing, not the primary editing model.
 - Preserve raw source labels, initial classifications, stable source ids, and final Ptah classifications as distinct data.
-- Inspect full-dataset distributions before taxonomy, curation, or cleanup decisions and perform a second look after each meaningful stage.
-- Prefer the smallest safe delta after first publish. For routine narrow maintenance, preserve unrelated fields by omitting them from the payload and verify the intended fields after write.
+- Inspect full-dataset distributions when designing or materially revising a taxonomy. For routine assignments under a stable taxonomy, validate only the changed rows and their category/subcategory pairs.
+- Assume Ptah on one computer is the only writer unless the project state or user says otherwise. Do not design routine work around hypothetical concurrency.
+- Prefer the smallest safe delta after first publish. For routine narrow maintenance, preserve unrelated fields by omitting them from the payload; a successful Airtable API response is sufficient confirmation.
 - Treat source registration types, ownership, and legal status as evidence rather than final taxonomy. Classify by primary organizational function and operating model unless the user defines another axis.
 - Keep website health, entity operating status, publication state, and logo health as separate signals.
 - Audit placeholder, individual, and non-organization registrations before setting publication controls. Never blanket-publish an event export.
@@ -53,11 +54,11 @@ Use this skill to onboard, repair, extend, publish, or maintain Ptah data.
 - Stage 2: canonicalize, deduplicate, preserve identifiers, diagnose missingness, and assess taxonomy readiness. If grounding is sparse, enrich descriptions or evidence before Stage 3.
 - Stage 3: design and assign one defensible taxonomy after inspecting the grounded dataset. Treat an earlier name-only taxonomy as provisional and re-evaluate it after enrichment.
 - Stage 4: enrich and curate sparse or inconsistent fields with recorded evidence.
-- Stage 5: validate the contract, audit Airtable, publish the intended delta, and verify it.
+- Stage 5: validate the contract, audit Airtable, publish, and verify the first or otherwise high-risk publication.
 - Stage 5b: activate and verify the gateway, deployment, and final hostname.
 - Stage 6: repair drift incrementally; route upstream when the defect is actually data quality.
 
-Before Stage 3 and Stage 5, run `scripts/audit_ptah_dataset.py` or an equivalent deterministic gate. Use `--require-gate taxonomy` before Stage 3 and `--require-gate publication` before Stage 5. Stage 3 requires enough grounding for defensible classification. Stage 5 requires explicit publication decisions for placeholders and non-organizations, schema-safe upload fields, and a fresh state file.
+Before a new taxonomy design and before a first or full publication, run `scripts/audit_ptah_dataset.py` or an equivalent deterministic gate. Use `--require-gate taxonomy` before Stage 3 and `--require-gate publication` before a full Stage 5. Do not rerun either whole-dataset gate for a routine narrow Stage 6 edit; validate only the changed ids, fields, and taxonomy pairs.
 
 ## Model-backed work
 
@@ -68,7 +69,7 @@ Before Stage 3 and Stage 5, run `scripts/audit_ptah_dataset.py` or an equivalent
 - Do not repeat derived `AI Context` in taxonomy prompts when a concise description already supplies the same evidence. Include richer context only for sparse rows.
 - Do not classify a boundary row from a lossy one-sentence rewrite when primary evidence contains decision-bearing identity or operating-model language. Carry those facts into the taxonomy packet or inspect the source directly.
 - Do not award high taxonomy confidence merely because a mapped source type exists. Require agreement between the source type and grounded functional evidence, and make confirmation guards symmetric so explicit function can correct a misleading source type.
-- Use deterministic distribution checks for complete-dataset review; send only low-confidence, boundary, sparse, or oversized-bucket cases to a second model pass.
+- Use deterministic distribution checks for taxonomy design or complete-dataset review; send only changed, low-confidence, boundary, sparse, or oversized-bucket cases to a second model pass.
 - Never use a full model pass merely to fill placeholders. Leave blocked fields pending and record the blocker.
 
 ## Logo and attachment boundary
@@ -85,14 +86,15 @@ Before Stage 3 and Stage 5, run `scripts/audit_ptah_dataset.py` or an equivalent
 
 ## Airtable and gateway boundary
 
-- Inspect the actual base, table, view, filters, publish controls, and field types before first publish, when the saved boundary is stale or ambiguous, or when remote behavior is surprising. Reuse verified state for routine maintenance on a known clean table.
+- Inspect the actual base, table, view, filters, publish controls, and field types once before first publish, when the saved boundary is stale or ambiguous, or when remote behavior is surprising. Reuse that boundary for routine maintenance.
 - `Updated At` must be native Airtable `lastModifiedTime`; omit it from row payloads.
 - Never use full-record updates for single-field maintenance.
 - Preserve existing attachments by omitting `Logo` from general imports and upserts.
-- For routine narrow maintenance on a known clean table, do not create guarded before-state snapshots, old-value guard ledgers, unrelated-field hash comparisons, or rollback CSVs by default. Build the narrow payload, optionally use the bundled dry run for schema and payload validation, write it, then read back intended fields and counts.
-- Use before-state snapshots, guarded comparisons, or rollback artifacts only for destructive changes, schema mutation, attachment replacement, publication/view-membership changes, ambiguous or stale remote state, explicit user requests, or another concrete high-risk condition.
+- For routine narrow maintenance on a known clean table: validate the changed values locally, update the canonical dataset, PATCH only the stable key and changed fields, accept the successful API response, and stop. Do not add schema preflights, dry runs, remote readbacks, full exports, count checks, state hashes, manifests, snapshots, guard ledgers, rollback CSVs, or browser checks.
+- Use comprehensive verification only for first/full publish, large imports or deletes, schema mutation, attachment replacement, publication/view-membership changes, deployment, ambiguous or stale remote state, surprising API behavior, explicit user requests, or another concrete high-risk condition.
+- If multiple writers later become a real concern, fetch only the touched rows immediately before writing and compare only the target fields with their previous local values. Patch matches and report conflicts; do not add locks, global diffs, or full-table reconciliation.
 - Prefer one consolidated core-data patch, one attachment pass, one gateway refresh, and one final acceptance run when requirements are known together.
-- Verify expected count, unique ids, taxonomy, profiles, publication state, attachments, gateway-local assets, and representative browser rendering.
+- For a comprehensive publish or deployment, verify expected count, unique ids, taxonomy, profiles, publication state, attachments, gateway-local assets, and representative browser rendering as applicable.
 
 ## Token-efficient operation
 
@@ -100,14 +102,14 @@ Before Stage 3 and Stage 5, run `scripts/audit_ptah_dataset.py` or an equivalent
 - Keep per-row and per-batch diagnostics in report files. Print milestones every 25-50 records and always print failures immediately.
 - Avoid model turns used only to poll a long process. Wait as long as the tool permits and summarize the terminal result once.
 - Keep `ptah-data-flow.state.json` under 4 KB. Archive chronology in the progress log without loading it by default.
-- Reconcile state counts, hashes, resolved blockers, and next actions immediately after every verified stage and again before the final response. A stale state file is a failed handoff.
+- Reconcile state at stage milestones, first/full publish, and high-risk operations. Do not rewrite state, counts, or hashes for every routine field edit unless they are the project source of truth for that field.
 - Retain final contact sheets and audit reports; keep per-tile previews and transient captures in temporary storage unless evidence retention is required.
 - A Codex task uses one configured model. Polling inside that task cannot switch to a cheaper model; use deterministic tools or a separately configured task/automation for detached low-cost monitoring.
 
 ## Outputs
 
 - one canonical local dataset
-- one publish artifact or verified remote delta
-- one compact current-state file
-- one stage verification artifact
+- one publish artifact or successful narrow remote delta
+- one compact current-state file when establishing or changing a stage boundary
+- one stage verification artifact for first/full publish or high-risk operations
 - one gateway acceptance artifact when deployment is in scope

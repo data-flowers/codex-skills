@@ -1,4 +1,4 @@
 interface:
   display_name: "Ptah Data Flow"
   short_description: "Curate, publish, and deploy Ptah data"
-  default_prompt: "Use $ptah-data-flow to turn the current source into a verified Ptah dataset and, when requested, connect and deploy it to the intended gateway and hostname."
+  default_prompt: "Use $ptah-data-flow to curate and publish the current Ptah data, using narrow single-writer updates after the initial verified publish."

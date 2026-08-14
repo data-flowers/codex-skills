@@ -176,6 +176,8 @@ Important:
   require the preview create/update count to match the verified upload manifest
 - reconcile `ptah-data-flow.state.json` after remote verification; clear resolved
   blockers and replace stale next actions
+- reserve this complete audit-and-verification path for first/full publication or
+  another high-risk boundary operation; routine narrow edits belong in Stage 6
 
 Exit criteria:
 
@@ -227,6 +229,24 @@ Important:
 
 Maintenance is not a separate system. It is the same lifecycle after first publish.
 
+Default routine path on a known clean Airtable table:
+
+1. assume the local Ptah process is the only writer unless current evidence says otherwise
+2. validate only the changed ids, values, and taxonomy pairs
+3. update the canonical dataset
+4. PATCH only the stable key and changed fields
+5. treat a successful API response as completion
+
+Do not rerun whole-dataset gates, distributions, schema inspection, remote
+readbacks, counts, manifests, hashes, progress/state rewrites, or browser checks
+for this routine path. Escalate to Stage 5-style verification only for first/full
+publish, large imports or deletes, schema/attachment/publication/deployment work,
+stale or surprising remote state, or an explicit request.
+
+When concurrent writers later become real, compare only touched remote fields
+with their previous canonical values immediately before writing. Report conflicts
+instead of overwriting them; do not introduce a global locking system.
+
 Priority rule:
 
 - if the user also brings new rows or a new export at the same time, first repair or re-establish the current source of truth
@@ -234,7 +254,9 @@ Priority rule:
 
 ## Second-look rule
 
-After Stage 2, Stage 3, Stage 4, Stage 5, and Stage 5b, perform a second look before declaring success.
+After substantive Stage 2, Stage 3, Stage 4, Stage 5, and Stage 5b work, perform a
+second look before declaring success. Do not apply this whole-dataset review to
+routine Stage 6 field edits under an unchanged schema and taxonomy.
 
 That review should check:
 

@@ -52,7 +52,8 @@ Rules:
 - Record only an authorized credential source label or path. Do not discover a
   working token by testing unrelated project credentials.
 - Keep only the latest authoritative artifact for each concern.
-- Use stable ids, hashes, counts, and status enums rather than prose.
+- Use stable ids, hashes, counts, and status enums rather than prose when the
+  state describes a full-dataset or publication milestone.
 - Update atomically after a stage succeeds. Do not advance state before
   verification passes.
 - Derive counts and hashes from the current artifacts; do not carry them forward
@@ -60,14 +61,15 @@ Rules:
 - Remove resolved blockers and replace stale next actions in the same update that
   records successful verification.
 - Include only one to three next actions and current blockers.
-- A newer direct inspection overrides stale state; update the file immediately.
+- A newer direct inspection overrides stale state; update the file when it
+  changes a routing fact, stage boundary, blocker, or next action.
 
-Before every final response, compare the state file with the canonical dataset,
-latest verification artifact, and remote inspection when applicable. Run
-`scripts/audit_ptah_dataset.py --state ./ptah-data-flow.state.json
---require-gate publication ...` or an equivalent check. If counts, hashes,
-blockers, schema findings, or publication status disagree, reconcile the state
-before handing off.
+Do not reconcile this file after every routine narrow field edit. For such edits,
+the canonical change plus successful narrow Airtable response is sufficient.
+Before a milestone handoff, first/full publish, or high-risk operation, compare
+the state file with the applicable canonical and verification artifacts. Run the
+publication gate only when publication readiness is actually being established
+or materially changed.
 
 ## Historical progress log
 
