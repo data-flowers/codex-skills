@@ -562,6 +562,7 @@ publication/view-membership change, deployment, or surprising response:
 
 - inspect the table or view again to verify record count
 - read back a small sample of the intended fields, such as `Id`, `Name`, and `AI Context`
+- for routine narrow maintenance, verify the intended remote values and relevant counts; do not require unrelated-field hash comparison when unrelated fields were omitted from the payload
 - for enrichment updates, count created vs updated records and confirm the update did not create duplicates
 - verify destination-view count and every publish-control or grouping field required for rows to appear downstream
 - for retirement, verify the full table still contains the preserved records, the published view excludes them, and no unrelated records left the view
