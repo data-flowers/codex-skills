@@ -134,6 +134,14 @@ When a user asks to start from a source category and then re-evaluate it, preser
 
 Classify enrichment as direct-source, supported-fallback, or limited. Keep per-row provenance and publish a coverage summary before curation. A small number of limited rows is acceptable when evidence is genuinely weak; fabricated completeness is not.
 
+## Temporal Claims Need Semantic and Source Guards
+
+Founding dates often mix several real but different events: organization origin, legal registration, spin-out, rename, acquisition, operating launch, or the start of an older industrial lineage. Define which event `Year Founded` represents and preserve competing dates with their meanings instead of selecting a number mechanically.
+
+Commercial company profiles are discovery sources, not authoritative registries. Do not let a model's confidence label promote them to direct evidence. Reject future years, review current-year values, and compare every high-risk date against first-party history and official-registry evidence already captured elsewhere in the pipeline. Treat years derived by subtracting a rounded anniversary as approximate until corroborated.
+
+Make temporal ownership explicit across stages. If a rewrite or curation pass discovers stronger founding evidence, it must correct the upstream value or emit a contradiction report; a field outside that pass's nominal outputs must not remain silently wrong.
+
 ## Airtable View Controls
 
 Published visibility may depend on fields outside the 12-field contract. Inspect and verify view filters plus control fields such as publish flags, status, record state, and grouping. Verify the filtered destination view count, not only the underlying table count.

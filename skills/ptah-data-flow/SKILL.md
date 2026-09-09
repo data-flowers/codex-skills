@@ -17,6 +17,7 @@ Use this skill to onboard, repair, extend, publish, or maintain Ptah data.
 - Assume Ptah on one computer is the only writer unless the project state or user says otherwise. Do not design routine work around hypothetical concurrency.
 - Prefer the smallest safe delta after first publish. For routine narrow maintenance, preserve unrelated fields by omitting them from the payload; a successful Airtable API response is sufficient confirmation.
 - Treat source registration types, ownership, and legal status as evidence rather than final taxonomy. Classify by primary organizational function and operating model unless the user defines another axis.
+- Treat temporal fields as high-risk evidence. Distinguish organization founding, exact legal-entity registration, rename or acquisition dates, historical lineage, and source/profile update dates; record which meaning was chosen.
 - Keep website health, entity operating status, publication state, and logo health as separate signals.
 - Audit placeholder, individual, and non-organization registrations before setting publication controls. Never blanket-publish an event export.
 - Store secrets in an ignored working-area `.env`; never print or record secret values.
@@ -69,6 +70,8 @@ Before a new taxonomy design and before a first or full publication, run `script
 - Do not repeat derived `AI Context` in taxonomy prompts when a concise description already supplies the same evidence. Include richer context only for sparse rows.
 - Do not classify a boundary row from a lossy one-sentence rewrite when primary evidence contains decision-bearing identity or operating-model language. Carry those facts into the taxonomy packet or inspect the source directly.
 - Do not award high taxonomy confidence merely because a mapped source type exists. Require agreement between the source type and grounded functional evidence, and make confirmation guards symmetric so explicit function can correct a misleading source type.
+- Do not let model confidence exceed source quality. A confident extraction from a commercial profile remains secondary evidence and must yield to a first-party history or official registry for the same temporal claim.
+- Before accepting `Year Founded`, run temporal sanity and contradiction checks. Future years fail; current-year values require explicit review; anniversary-derived years and dates contradicted by stronger evidence remain pending until resolved.
 - Use deterministic distribution checks for taxonomy design or complete-dataset review; send only changed, low-confidence, boundary, sparse, or oversized-bucket cases to a second model pass.
 - Never use a full model pass merely to fill placeholders. Leave blocked fields pending and record the blocker.
 

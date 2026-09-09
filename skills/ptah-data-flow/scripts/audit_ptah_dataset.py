@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from datetime import datetime, timezone
 import hashlib
 import json
 import re
@@ -53,6 +54,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--min-grounding-coverage", type=float, default=0.80)
     parser.add_argument("--require-gate", choices=("none", "taxonomy", "publication"), default="none")
+    parser.add_argument(
+        "--allow-current-year-founded",
+        action="store_true",
+        help="Confirm that all current-year founding values in this audited artifact were explicitly reviewed.",
+    )
     return parser.parse_args()
 
 
@@ -135,7 +141,7 @@ def state_drift(state_path: Path | None, counts: dict[str, int], input_hash: str
     state = json.loads(state_path.read_text())
     state_counts = state.get("counts") or {}
     differences = []
-    for key in ("canonical", "websites", "descriptions", "aiContext", "categories", "subcategories"):
+    for key in ("canonical", "websites", "descriptions", "yearFounded", "aiContext", "categories", "subcategories"):
         if key in state_counts and state_counts[key] != counts[key]:
             differences.append({"field": f"counts.{key}", "state": state_counts[key], "actual": counts[key]})
     if state.get("canonicalHash") and state["canonicalHash"] != input_hash:
@@ -155,6 +161,35 @@ def main() -> int:
     descriptions = [text(row, "description", "Description") for row in rows]
     contexts = [text(row, "aiContext", "AI Context") for row in rows]
     websites = [text(row, "websiteUrl", "Website") for row in rows]
+    founding_years = [text(row, "yearFounded", "Year Founded") for row in rows]
+
+    current_year = datetime.now(timezone.utc).year
+    invalid_founding_year_rows = []
+    future_founding_year_rows = []
+    current_year_founding_rows = []
+    unreviewed_current_year_founding_rows = []
+    for index, raw_year in enumerate(founding_years):
+        if not raw_year:
+            continue
+        record = {"row": index + 2, "id": ids[index], "name": names[index], "value": raw_year}
+        if not re.fullmatch(r"\d{4}", raw_year):
+            invalid_founding_year_rows.append({**record, "reason": "not-four-digits"})
+            continue
+        numeric_year = int(raw_year)
+        if numeric_year < 1000 or numeric_year > current_year:
+            invalid_founding_year_rows.append({**record, "reason": "out-of-range"})
+            if numeric_year > current_year:
+                future_founding_year_rows.append(record)
+            continue
+        if numeric_year == current_year:
+            reviewed, valid_review = parse_bool(
+                value(rows[index], "foundingYearReviewed", "Founding Year Reviewed")
+            )
+            reviewed = args.allow_current_year_founded or (valid_review and reviewed is True)
+            current_record = {**record, "reviewed": reviewed}
+            current_year_founding_rows.append(current_record)
+            if not reviewed:
+                unreviewed_current_year_founding_rows.append(current_record)
 
     duplicate_ids = sorted(item for item, count in Counter(ids).items() if item and count > 1)
     missing_ids = [index + 2 for index, item in enumerate(ids) if not item]
@@ -244,6 +279,7 @@ def main() -> int:
         "uniqueIds": len(set(item for item in ids if item)),
         "websites": sum(bool(item) for item in websites),
         "descriptions": sum(bool(item) for item in descriptions),
+        "yearFounded": sum(bool(item) for item in founding_years),
         "aiContext": sum(bool(item) for item in contexts),
         "categories": len(categories),
         "subcategories": len(taxonomy_pairs),
@@ -251,6 +287,7 @@ def main() -> int:
         "publishedTrue": published_true,
         "eligibleRows": eligible_rows,
         "placeholderCandidates": len(placeholder_rows),
+        "currentYearFoundingValues": len(current_year_founding_rows),
     }
     grounding_coverage = grounded_eligible_rows / eligible_rows if eligible_rows else 0.0
     taxonomy_coverage = taxonomy_rows / eligible_rows if eligible_rows else 0.0
@@ -258,10 +295,14 @@ def main() -> int:
     drift = state_drift(args.state, counts, input_hash)
 
     forbidden_upload_fields = [field for field in ("Logo", "Updated At") if kind == "upload" and field in fields]
-    structural_errors = bool(duplicate_ids or missing_ids or missing_names or non_text_ids)
+    structural_errors = bool(
+        duplicate_ids or missing_ids or missing_names or non_text_ids or invalid_founding_year_rows
+    )
     upload_errors = bool(forbidden_upload_fields or invalid_published_rows or published_placeholder_rows)
     taxonomy_ready = not structural_errors and grounding_coverage >= args.min_grounding_coverage
-    publication_review_required = bool(placeholder_rows and not has_published_field)
+    publication_review_required = bool(
+        (placeholder_rows and not has_published_field) or unreviewed_current_year_founding_rows
+    )
     publication_ready = (
         not structural_errors
         and not upload_errors
@@ -287,6 +328,10 @@ def main() -> int:
             "missingIdRows": missing_ids,
             "nonTextIdRows": non_text_ids,
             "missingNameRows": missing_names,
+            "invalidFoundingYearRows": invalid_founding_year_rows,
+            "futureFoundingYearRows": future_founding_year_rows,
+            "currentYearFoundingRows": current_year_founding_rows,
+            "unreviewedCurrentYearFoundingRows": unreviewed_current_year_founding_rows,
             "placeholderCandidates": placeholder_rows,
             "publishedPlaceholderRows": published_placeholder_rows,
             "invalidPublishedRows": invalid_published_rows,
@@ -302,6 +347,7 @@ def main() -> int:
             "structurallyValid": not structural_errors,
             "taxonomyReady": taxonomy_ready,
             "publicationReviewRequired": publication_review_required,
+            "temporalReviewRequired": bool(unreviewed_current_year_founding_rows),
             "publicationReady": publication_ready,
             "required": args.require_gate,
         },
@@ -325,6 +371,9 @@ def main() -> int:
                 "genericPlatformDescriptions": len(generic_description_rows),
                 "publishedGenericPlatformDescriptions": len(published_generic_description_rows),
                 "repeatedDescriptions": len(repeated_descriptions),
+                "invalidFoundingYears": len(invalid_founding_year_rows),
+                "futureFoundingYears": len(future_founding_year_rows),
+                "unreviewedCurrentYearFoundingYears": len(unreviewed_current_year_founding_rows),
                 "stateDifferences": len(drift["differences"]),
             },
             "report": str(args.output.resolve()),

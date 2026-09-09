@@ -58,6 +58,31 @@ page may support identity resolution without providing a publishable description
 
 Refresh only sparse or failed rows after a network, authentication, or retrieval improvement. Do not rebuild successful direct-source rows unnecessarily.
 
+## Temporal evidence policy
+
+Define the meaning of `Year Founded` before enrichment. Unless the user chooses a legal-entity axis, use the organization's own stated founding year. Keep later legal registration, incorporation, acquisition, rename, spin-out, operating launch, and older industrial lineage as separate evidence; do not silently substitute one for another.
+
+For temporal claims, prefer evidence in this order:
+
+1. an explicit user-provided source or first-party company history
+2. an official public registry for the exact legal entity
+3. a credible secondary source corroborated by another independent source
+4. a commercial company profile only as a discovery lead
+
+Model confidence does not upgrade the underlying source tier. A high-confidence extraction from a commercial profile is still secondary evidence.
+
+Before materialization, run a temporal review that:
+
+- rejects malformed and future years
+- requires explicit review for a year equal to the current year
+- rejects profile-update, crawl, report, copyright, transaction, acquisition, and product-launch dates presented as founding dates
+- treats anniversary subtraction, such as “35 years” in a 2023 page, as a candidate rather than exact proof
+- compares the proposed year with first-party history excerpts and official-registry evidence already present anywhere in the cache
+- flags internally impossible sequences, such as a claimed incorporation after the source's own profile-update date
+- preserves conflicting candidate years, their meanings, and URLs in a review artifact
+
+When sources disagree, apply the declared field meaning rather than mechanically choosing the oldest or newest year. If the conflict cannot be resolved, leave `Year Founded` blank or pending. A later curation pass that discovers stronger temporal evidence must be able to correct the field or emit a blocking contradiction; it must not pass the earlier value through silently.
+
 ## Exa's role
 
 Exa is an enrichment and discovery layer, not the source of truth by itself.
