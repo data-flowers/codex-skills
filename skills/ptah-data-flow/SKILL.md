@@ -47,6 +47,7 @@ Use this skill to onboard, repair, extend, publish, or maintain Ptah data.
 - State and handoff format: [references/progress-log.md](references/progress-log.md)
 - Bundled entrypoints: [references/artifacts.md](references/artifacts.md)
 - Prior reusable lessons: [references/field-notes.md](references/field-notes.md)
+- Skill source/install synchronization, validation, commit, or release: [references/skill-maintenance.md](references/skill-maintenance.md)
 
 ## Stage routing
 
@@ -108,6 +109,12 @@ Before a new taxonomy design and before a first or full publication, run `script
 - Reconcile state at stage milestones, first/full publish, and high-risk operations. Do not rewrite state, counts, or hashes for every routine field edit unless they are the project source of truth for that field.
 - Retain final contact sheets and audit reports; keep per-tile previews and transient captures in temporary storage unless evidence retention is required.
 - A Codex task uses one configured model. Polling inside that task cannot switch to a cheaper model; use deterministic tools or a separately configured task/automation for detached low-cost monitoring.
+
+## Skill self-maintenance
+
+- When the user asks to turn a reusable lesson into this skill, update, commit, push, install, or compare Ptah versions, read [references/skill-maintenance.md](references/skill-maintenance.md).
+- Treat the version-controlled repository copy as the release source of truth and the Codex-installed copy as a runtime mirror. Fetch and reconcile the repository before editing; after release, refresh the installed copy from the final repository state and require a full-tree parity check.
+- Do not perform repository or installation maintenance during ordinary Ptah data work unless the user asks for it. Committing, pushing, or replacing an installed copy still requires the corresponding user authorization.
 
 ## Outputs
 
