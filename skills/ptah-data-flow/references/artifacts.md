@@ -36,7 +36,7 @@ If the folder contains multiple plausible datasets, establish a dataset-scoped w
 - `./ptah-data-flow.progress.md`
 - optional: `./ptah-data-flow.feedback.md`
 
-Use the progress log for normal user work.
+Read current state for normal continuations; use the progress log only for history or missing context.
 
 Use the feedback log only when:
 
@@ -56,10 +56,12 @@ Examples:
 - optimized image directory plus source/optimized manifest
 - attachment-only Airtable verification report
 
-The exact names can vary. What matters is that the agent treats one of them as the current source of truth and records that in the progress log.
+The exact names can vary. What matters is that the agent treats one of them as the current source of truth and records that in current state.
 
 ### Bundled boundary tools
 
+- [`scripts/ptah_contract.json`](../scripts/ptah_contract.json)
+- [`scripts/check_skill.py`](../scripts/check_skill.py)
 - [`scripts/audit_ptah_dataset.py`](../scripts/audit_ptah_dataset.py)
 - [`scripts/inspect_airtable_table.mjs`](../scripts/inspect_airtable_table.mjs)
 - [`scripts/upsert_airtable_csv.mjs`](../scripts/upsert_airtable_csv.mjs)

@@ -85,3 +85,26 @@ The spreadsheet or workbench surface is an adapter boundary. It is not the cente
 - `Subcategory` should usually represent one normalized business or investor class under that entity type.
 - Raw source taxonomies may be multi-tagged, sparse, or too broad. Normalize them before publish rather than copying them literally.
 - If you widen or rename the category away from the obvious default for the dataset, surface that choice explicitly and record the reason in the progress log.
+
+## Executable validation
+
+[ptah_contract.json](../scripts/ptah_contract.json) owns canonical mappings, field
+names, accepted Airtable types, booleans, and upload exclusions. The dataset and
+remote schema auditors consume the same contract.
+
+`audit_ptah_dataset.py --kind canonical|ptah|upload` requires the corresponding
+complete field shape, including optional fields whose values may be blank.
+`--kind delta` checks only the key and provided changed fields and does not claim
+whole-dataset readiness. Supply category and subcategory together for pair checks.
+
+A taxonomy file has this shape:
+
+```json
+{"version": 1, "categories": {"Companies": ["Sensors", "Software"]}}
+```
+
+Use `--taxonomy taxonomy.json` to validate membership. Full publication requires
+that check; taxonomy design can run the coverage gate before a taxonomy exists.
+Reports distinguish field shape, description coverage, taxonomy membership,
+declared evidence tiers, and state freshness. Description coverage does not
+verify first-party evidence or resolve contradictory claims.

@@ -342,3 +342,100 @@ After this workflow, derive a general Airtable upload artifact that omits
 `Logo` or the optimized attachment field. Keep the canonical 12-field Ptah
 artifact intact. This prevents a later full record upsert from restoring the
 large source URLs over the optimized Airtable attachments.
+
+## Single-logo maintenance
+
+Use this when the user asks to add or replace a logo for one known entity in an already-published Airtable table.
+
+If the source is oversized, multiple logos need recurring refreshes, or
+optimized Airtable storage is part of the request, read
+[`attachment-images.md`](attachment-images.md) and use or adapt
+[`scripts/optimize_airtable_attachments.py`](../scripts/optimize_airtable_attachments.py).
+
+1. read current state for the Airtable ids, authorized credential source, and current export path
+2. locate the live target row by current Airtable export or filtered records API; prefer the Airtable `record_id` over CSV `Id`
+3. build and review a first-party candidate inventory before selecting one stable,
+   official, publicly reachable image URL:
+   - inspect HTML icon links, manifests, metadata, CSS/JS references, official
+     asset directories, and reasonable same-origin sibling filenames and formats
+   - do not stop at a tiny root favicon when the site may expose a larger logo,
+     animated favicon, app icon, wordmark, or product mark elsewhere
+   - download and visually compare plausible candidates; reject unrelated UI
+     glyphs or decorative assets even when their paths contain `logo` or `icon`
+   - prefer an explicit official logo/brand asset, then a verified official
+     favicon, site icon, or app icon suitable for card use
+   - avoid broad image search unless the official site does not expose a usable asset
+   - avoid date/header/hero assets when a standalone square or wordmark logo exists
+   - if the logo is white on transparent and cards are likely light, prefer an official square icon or colored-background variant
+   - if the first-party pass finds nothing suitable, leave `Logo` blank; create
+     a non-official wordmark only with explicit user approval and provenance
+   - treat SVG and ICO as source formats only; convert them locally to a reviewed
+     PNG or WebP and do not PATCH the original URL into Airtable
+4. check the image once before patching:
+   - `HEAD` or download should return `200`
+   - content type should be a supported raster image type Airtable can ingest;
+     direct SVG and ICO attachments are unsupported
+   - dimensions should be suitable for display, usually square or a clear wordmark
+   - if either dimension exceeds the viewer's realistic render size, transform
+     it locally before upload; use a 256-pixel maximum dimension by default and
+     treat 512 pixels as a ceiling for verified high-density or detailed needs
+   - inspect alpha and contrast on both light and dark card surfaces; for a
+     white/translucent mark, composite it onto an official brand or site-theme
+     background and run the optimizer with `--require-opaque`
+5. PATCH only the `Logo` field:
+
+```json
+{
+  "records": [
+    {
+      "id": "rec...",
+      "fields": {
+        "Logo": [
+          {
+            "url": "https://example.com/logo.png",
+            "filename": "entity-logo.png"
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+6. verify the same record after Airtable processes the attachment:
+   - `Logo` attachment count is exactly what was intended
+   - attachment `type`, `size`, `width`, `height`, URL, and thumbnails are present when available
+   - untouched fields such as `Name`, `Website`, `AI Context`, and `Published` still have expected values
+   - download the Airtable-served full image and generated thumbnail; require
+     the full-file hash to match the reviewed asset and the thumbnail to remain
+     opaque when a contrast background was required
+7. re-export the view only after the successful patch if the local export is used as a handoff artifact
+8. update the progress log with the record id, source image URL, attachment count, dimensions, and refreshed export path
+
+This fast path should normally avoid full schema audits, AI generation, full CSV rewrites, and repeated page scraping unless the remote boundary is unknown or the logo source is ambiguous.
+
+For transformed attachments, upload the optimized bytes first, identify the
+new attachment id, then PATCH only `Logo` to retain that id. Never clear the
+old attachment before the upload succeeds.
+
+SVG/ICO conversion is always a transformed-attachment workflow. Run the local
+prepare phase first, then upload and attach the converted raster bytes. A public
+SVG/ICO URL is not a valid fast-path attachment payload.
+
+Preservation checks after attachment maintenance:
+
+- compare untouched fields for every patched record before and after upload when a local pre-patch export exists
+- always check attachment presence/count for `Logo` on touched rows
+- if a URL-like Airtable attachment export changes but the attachment is still present, treat that as likely Airtable URL rotation, not automatically as data loss
+- if an attachment count changes, stop and report the row ids before doing further writes
+- re-run the schema audit if the update touched boundary setup or if the remote behavior looks surprising
+
+
+## Reusing reviewed assets
+
+`--reuse-manifest` compares each row's source, transformation policy, local source
+bytes, and optimized-file integrity. It rebuilds only changed or invalid assets.
+An unchanged remote URL reuses the reviewed snapshot; use
+`--refresh-remote-sources` when refreshing remote content that may have changed
+in place. An uncertain attachment append is not automatically retried: inspect
+the affected record before continuing.

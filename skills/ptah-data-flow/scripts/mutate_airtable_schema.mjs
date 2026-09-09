@@ -1,108 +1,10 @@
 #!/usr/bin/env node
+import { API_ROOT, isMain, CONTRACT, arg, hasFlag, fail, parseAirtableUrl, fetchJson, fetchBaseSchema, describeNameIssue, buildFieldMaps } from "./airtable_common.mjs";
 
 // Usage:
 //   AIRTABLE_TOKEN=pat... node mutate_airtable_schema.mjs plan --url "https://airtable.com/app.../tbl.../viw...?blocks=hide"
 //   AIRTABLE_TOKEN=pat... node mutate_airtable_schema.mjs apply --url "https://airtable.com/app.../tbl.../viw...?blocks=hide"
 //   AIRTABLE_TOKEN=pat... node mutate_airtable_schema.mjs plan --url "..." --json
-
-const API_ROOT = "https://api.airtable.com/v0";
-
-const CONTRACT = [
-  { name: "Id", createType: "singleLineText", createOptions: null },
-  { name: "Category", createType: "singleLineText", createOptions: null },
-  { name: "Subcategory", createType: "singleLineText", createOptions: null },
-  { name: "Name", createType: "singleLineText", createOptions: null },
-  { name: "Website", createType: "url", createOptions: null },
-  { name: "Logo", createType: "url", createOptions: null },
-  { name: "Description", createType: "multilineText", createOptions: null },
-  { name: "Year Founded", createType: "singleLineText", createOptions: null },
-  { name: "Email", createType: "singleLineText", createOptions: null },
-  { name: "Tech Capabilities", createType: "multilineText", createOptions: null },
-  { name: "Updated At", createType: null, createOptions: null },
-  { name: "AI Context", createType: "multilineText", createOptions: null },
-];
-
-function fail(message) {
-  console.error(message);
-  process.exit(1);
-}
-
-function arg(name, fallback = null) {
-  const i = process.argv.indexOf(`--${name}`);
-  return i >= 0 ? process.argv[i + 1] : fallback;
-}
-
-function hasFlag(name) {
-  return process.argv.includes(`--${name}`);
-}
-
-function parseAirtableUrl(rawUrl) {
-  const url = new URL(rawUrl);
-  const match = url.pathname.match(
-    /^\/(?<base>app[a-zA-Z0-9]+)\/(?<table>tbl[a-zA-Z0-9]+)(?:\/(?<view>viw[a-zA-Z0-9]+))?\/?$/
-  );
-
-  if (!match?.groups?.base || !match?.groups?.table) {
-    throw new Error(`Could not parse Airtable base/table IDs from URL: ${rawUrl}`);
-  }
-
-  return {
-    baseId: match.groups.base,
-    tableId: match.groups.table,
-    viewId: match.groups.view || null,
-  };
-}
-
-function normalizeName(name) {
-  return String(name ?? "")
-    .replace(/^\ufeff/, "")
-    .trim();
-}
-
-function describeNameIssue(actualName, expectedName) {
-  const issues = [];
-  if (String(actualName).startsWith("\ufeff")) {
-    issues.push("leading BOM");
-  }
-  if (String(actualName) !== String(actualName).trim()) {
-    issues.push("leading or trailing whitespace");
-  }
-  if (normalizeName(actualName) === expectedName && issues.length === 0 && actualName !== expectedName) {
-    issues.push("invisible name mismatch");
-  }
-  return issues;
-}
-
-async function fetchJson(url, token, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
-
-  const text = await response.text();
-  let data = null;
-
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-
-  if (!response.ok) {
-    const detail = typeof data === "string" ? data : JSON.stringify(data, null, 2);
-    throw new Error(`${response.status} ${response.statusText}\n${detail}`);
-  }
-
-  return data;
-}
-
-async function fetchBaseSchema(baseId, token) {
-  return fetchJson(`${API_ROOT}/meta/bases/${baseId}/tables`, token);
-}
 
 async function updateField(baseId, tableId, fieldId, body, token) {
   return fetchJson(`${API_ROOT}/meta/bases/${baseId}/tables/${tableId}/fields/${fieldId}`, token, {
@@ -118,19 +20,7 @@ async function createField(baseId, tableId, body, token) {
   });
 }
 
-function buildFieldMaps(fields) {
-  const exact = new Map();
-  const normalized = new Map();
-
-  for (const field of fields) {
-    exact.set(field.name, field);
-    normalized.set(normalizeName(field.name), field);
-  }
-
-  return { exact, normalized };
-}
-
-function buildPlan(table) {
+export function buildPlan(table) {
   const actions = [];
   const notes = [];
   const { exact, normalized } = buildFieldMaps(table.fields || []);
@@ -156,7 +46,7 @@ function buildPlan(table) {
           kind: "create_field",
           name: expected.name,
           fieldType: expected.createType,
-          options: expected.createOptions,
+          options: null,
         });
       } else {
         notes.push({
@@ -167,7 +57,10 @@ function buildPlan(table) {
       }
       continue;
     }
-
+    if (!expected.acceptedTypes.includes(field.type)) {
+      notes.push({ kind: "field_type_mismatch", field: expected.name,
+        message: `Field ${expected.name} is ${field.type}; expected ${expected.acceptedTypes.join(" or ")}. Type conversion needs an explicit migration.` });
+    }
   }
 
   return { actions, notes };
@@ -378,6 +271,7 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  fail(String(error.message || error));
+if (isMain(import.meta.url)) main().catch((error) => {
+  console.error(String(error.message || error));
+  process.exitCode = 1;
 });

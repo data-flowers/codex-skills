@@ -1,120 +1,12 @@
 #!/usr/bin/env node
+import { isMain, CONTRACT, arg, hasFlag, fail, parseAirtableUrl, fetchBaseSchema, describeNameIssue, buildFieldMaps } from "./airtable_common.mjs";
 
 // Usage:
 //   AIRTABLE_TOKEN=pat... node audit_airtable_schema.mjs --url "https://airtable.com/app.../tbl.../viw...?blocks=hide"
 //   AIRTABLE_TOKEN=pat... node audit_airtable_schema.mjs --base app... --table tbl... [--view viw...]
 //   AIRTABLE_TOKEN=pat... node audit_airtable_schema.mjs --url "..." --json
 
-const API_ROOT = "https://api.airtable.com/v0";
-
-const CONTRACT = [
-  { name: "Id", createType: "singleLineText" },
-  { name: "Category", createType: "singleLineText" },
-  { name: "Subcategory", createType: "singleLineText" },
-  { name: "Name", createType: "singleLineText" },
-  { name: "Website", createType: "url" },
-  { name: "Logo", createType: "url" },
-  { name: "Description", createType: "multilineText" },
-  { name: "Year Founded", createType: "singleLineText" },
-  { name: "Email", createType: "singleLineText" },
-  { name: "Tech Capabilities", createType: "multilineText" },
-  { name: "Updated At", requiredType: "lastModifiedTime", createType: null },
-  { name: "AI Context", createType: "multilineText" },
-];
-
-function arg(name, fallback = null) {
-  const i = process.argv.indexOf(`--${name}`);
-  return i >= 0 ? process.argv[i + 1] : fallback;
-}
-
-function hasFlag(name) {
-  return process.argv.includes(`--${name}`);
-}
-
-function fail(message) {
-  console.error(message);
-  process.exit(1);
-}
-
-function parseAirtableUrl(rawUrl) {
-  const url = new URL(rawUrl);
-  const match = url.pathname.match(
-    /^\/(?<base>app[a-zA-Z0-9]+)\/(?<table>tbl[a-zA-Z0-9]+)(?:\/(?<view>viw[a-zA-Z0-9]+))?\/?$/
-  );
-
-  if (!match?.groups?.base || !match?.groups?.table) {
-    throw new Error(`Could not parse Airtable base/table IDs from URL: ${rawUrl}`);
-  }
-
-  return {
-    baseId: match.groups.base,
-    tableId: match.groups.table,
-    viewId: match.groups.view || null,
-  };
-}
-
-async function fetchJson(url, token) {
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  });
-
-  const text = await res.text();
-  let data = null;
-
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-
-  if (!res.ok) {
-    const detail = typeof data === "string" ? data : JSON.stringify(data, null, 2);
-    throw new Error(`${res.status} ${res.statusText}\n${detail}`);
-  }
-
-  return data;
-}
-
-async function fetchBaseSchema(baseId, token) {
-  return fetchJson(`${API_ROOT}/meta/bases/${baseId}/tables`, token);
-}
-
-function normalizeName(name) {
-  return String(name ?? "")
-    .replace(/^\ufeff/, "")
-    .trim();
-}
-
-function describeNameIssue(actualName, expectedName) {
-  const issues = [];
-  if (String(actualName).startsWith("\ufeff")) {
-    issues.push("leading BOM");
-  }
-  if (String(actualName) !== String(actualName).trim()) {
-    issues.push("leading or trailing whitespace");
-  }
-  if (normalizeName(actualName) === expectedName && issues.length === 0 && actualName !== expectedName) {
-    issues.push("invisible name mismatch");
-  }
-  return issues;
-}
-
-function buildFieldMaps(fields) {
-  const exact = new Map();
-  const normalized = new Map();
-
-  for (const field of fields) {
-    exact.set(field.name, field);
-    normalized.set(normalizeName(field.name), field);
-  }
-
-  return { exact, normalized };
-}
-
-function auditTable(table) {
+export function auditTable(table) {
   const issues = [];
   const { exact, normalized } = buildFieldMaps(table.fields || []);
 
@@ -145,7 +37,7 @@ function auditTable(table) {
       });
     }
 
-    if (expected.requiredType && field.type !== expected.requiredType) {
+    if (!expected.acceptedTypes.includes(field.type)) {
       const updatedAtGuidance = expected.name === "Updated At"
         ? " CSV import cannot create or preserve Last modified time. For a new table, provision this field natively in Airtable before row import, omit it from the upload artifact, and rerun the audit."
         : "";
@@ -155,8 +47,8 @@ function auditTable(table) {
         actualName: field.name,
         actualType: field.type,
         repairable: false,
-        targetType: expected.requiredType,
-        message: `Field "${field.name}" is type "${field.type}". Expected: ${expected.requiredType}.${updatedAtGuidance}`,
+        targetType: expected.acceptedTypes.join(" or "),
+        message: `Field "${field.name}" is type "${field.type}". Expected: ${expected.acceptedTypes.join(" or ")}.${updatedAtGuidance}`,
       });
     }
   }
@@ -167,7 +59,7 @@ function auditTable(table) {
   };
 }
 
-async function main() {
+export async function main() {
   const token = process.env.AIRTABLE_TOKEN;
   if (!token) {
     fail("Missing AIRTABLE_TOKEN in environment.");
@@ -243,7 +135,7 @@ async function main() {
 
   if (asJson) {
     console.log(JSON.stringify(result, null, 2));
-    return;
+    return audit.issues.length ? 2 : 0;
   }
 
   console.log(`Base: ${result.base.id}`);
@@ -256,7 +148,7 @@ async function main() {
 
   if (audit.issues.length === 0) {
     console.log("Schema matches the Ptah contract cleanly.");
-    return;
+    return 0;
   }
 
   console.log("Issues:");
@@ -270,8 +162,10 @@ async function main() {
     }
     console.log(line.join(" "));
   }
+  return 2;
 }
 
-main().catch((error) => {
-  fail(String(error.message || error));
+if (isMain(import.meta.url)) main().then(code => { process.exitCode = code; }).catch((error) => {
+  console.error(String(error.message || error));
+  process.exitCode = 1;
 });

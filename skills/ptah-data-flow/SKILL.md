@@ -1,6 +1,6 @@
 ---
 name: ptah-data-flow
-description: Use when a user needs to turn a rough list, appended seed file, folder of raw data, CSV, HTML export, nested list, markdown, PDF, event-heavy Airtable base, or broken Ptah publish flow into a clean Ptah-ready dataset. Also use for published-state maintenance, website-liveness audits and retirement, compact taxonomy or capability labels, model-backed curation, Ptah Airtable connection setup, gateway or custom-domain deployment, and contrast-safe logo or image attachment repair including Logo.dev identity checks and missing-logo completeness gates. This skill treats Airtable as storage and publish plumbing, not the main editing surface.
+description: Curate, validate, publish, and maintain Ptah datasets from rough sources. Use for Ptah taxonomy, grounded enrichment, Airtable publishing, website retirement, gateway deployment, and explicitly requested logo repair.
 ---
 # ptah-data-flow
 
@@ -40,7 +40,9 @@ Use this skill to onboard, repair, extend, publish, or maintain Ptah data.
 - Event attendee or affiliation-assisted enrichment: [references/event-affiliation-enrichment.md](references/event-affiliation-enrichment.md)
 - Gemini rewrite runners: [references/rewrite-runners.md](references/rewrite-runners.md)
 - Credential sourcing or ambiguous secret references: [references/credential-sourcing.md](references/credential-sourcing.md)
-- Airtable schema, PAT, table, view, or safe PATCH: [references/airtable-boundary.md](references/airtable-boundary.md)
+- First/full Airtable publication or schema repair: [references/airtable-boundary.md](references/airtable-boundary.md)
+- Routine narrow Airtable edits: [references/airtable-maintenance.md](references/airtable-maintenance.md)
+- PAT, target resolution, or Ptah test/save: [references/airtable-connection.md](references/airtable-connection.md)
 - Gateway, custom hostname, or deployment: [references/gateway-deployment.md](references/gateway-deployment.md)
 - Website correction or retirement: [references/website-liveness.md](references/website-liveness.md)
 - Explicit logo or attachment work only: [references/attachment-images.md](references/attachment-images.md)
@@ -60,12 +62,12 @@ Use this skill to onboard, repair, extend, publish, or maintain Ptah data.
 - Stage 5b: activate and verify the gateway, deployment, and final hostname.
 - Stage 6: repair drift incrementally; route upstream when the defect is actually data quality.
 
-Before a new taxonomy design and before a first or full publication, run `scripts/audit_ptah_dataset.py` or an equivalent deterministic gate. Use `--require-gate taxonomy` before Stage 3 and `--require-gate publication` before a full Stage 5. Do not rerun either whole-dataset gate for a routine narrow Stage 6 edit; validate only the changed ids, fields, and taxonomy pairs.
+Before a new taxonomy design and before a first or full publication, run `scripts/audit_ptah_dataset.py` or an equivalent deterministic gate. Use `--require-gate taxonomy` before Stage 3 and `--require-gate publication --taxonomy taxonomy.json` before a full Stage 5. The publication gate requires the complete artifact shape and checks membership in that taxonomy. Description coverage is separate from evidence review; state freshness is informational. Do not rerun either whole-dataset gate for a routine narrow Stage 6 edit; validate only the changed ids, fields, and taxonomy pairs.
 
 ## Model-backed work
 
 - Treat model calls as an external data boundary. Send only an approved public-field allowlist with explicit context caps.
-- Cache by model, prompt version, and a fingerprint of the relevant source fields. An id-only cache key is invalid for mutable rows.
+- Use the shared rewrite runtime with dataset configuration; see [rewrite runners](references/rewrite-runners.md). Cache by exact id, model, prompt version, and a fingerprint of the relevant source fields.
 - Record prompt, output, cached token counts, retries, model, stage, and cache hit or miss when the API exposes usage metadata.
 - Batch structurally identical requests when validation can still prove every id is returned exactly once.
 - Do not repeat derived `AI Context` in taxonomy prompts when a concise description already supplies the same evidence. Include richer context only for sparse rows.
@@ -78,15 +80,9 @@ Before a new taxonomy design and before a first or full publication, run `script
 
 ## Logo and attachment boundary
 
-- Do not fetch, generate, audit, or alter logos unless the user explicitly requests attachment work.
-- For explicit logo work, discover first-party assets before fallbacks. Never invent a mark without approval.
-- Validate the current official domain before Logo.dev lookup. Prefer domain lookup with placeholders disabled; quarantine name matches until entity and visual review pass.
-- Audit populated and blank rows. Keep a reviewed exception ledger, fail on unexpected blanks, and fail on stale exceptions.
-- After any gateway logo loss, reconcile source attachments against durable published assets for every related map; keep intentional source blanks as a separate count.
-- Normalize reviewed sources locally to sRGB WebP, preserve aspect ratio, never upscale, default to a 256-pixel ceiling, and keep a content-hashed manifest.
-- Verify light/dark and thumbnail visibility. Use a reviewed contrast card only when the official mark needs it.
-- Pilot the largest asset, PATCH only the attachment field, stop on the first mismatch, and verify served bytes plus unrelated-field preservation.
-- Require durable gateway-local image paths, successful decoding, expected format/dimensions, and one labeled viewer contact sheet covering high-risk identities.
+- Enter this workflow only for explicit attachment work. Preserve existing logos by omitting them from general uploads.
+- Follow [attachment-images.md](references/attachment-images.md) for first-party discovery, identity review, contrast, completeness, normalization, and verified replacement. Never invent an official mark.
+- Reuse reviewed assets only when source identity and transformation policy still match. Refresh remote sources explicitly when their bytes may have changed in place.
 
 ## Airtable and gateway boundary
 
@@ -102,7 +98,7 @@ Before a new taxonomy design and before a first or full publication, run `script
 
 ## Token-efficient operation
 
-- Prefer one stage orchestrator that writes detailed artifacts to disk and returns a compact JSON summary under 2 KB.
+- Use the bundled entrypoints and keep detailed artifacts on disk; return compact summaries under 2 KB. Add an orchestrator only when the actual dataset needs one.
 - Keep per-row and per-batch diagnostics in report files. Print milestones every 25-50 records and always print failures immediately.
 - Avoid model turns used only to poll a long process. Wait as long as the tool permits and summarize the terminal result once.
 - Keep `ptah-data-flow.state.json` under 4 KB. Archive chronology in the progress log without loading it by default.

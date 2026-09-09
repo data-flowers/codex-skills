@@ -158,13 +158,13 @@ Once you have enough grounded source material:
 If the project already has rewrite scripts, prompts, or templates:
 
 - use them if they fit the current dataset
-- otherwise copy and adapt them into the current working area
-- bundled rewrite runners and templates inside this skill count as an available rewrite path, not as optional inspiration to ignore
+- otherwise configure the bundled runner with dataset-specific paths, selected fields, and prompt files
+- use the shared bundled runtime so fixes propagate across datasets
 - do not run dataset-specific scripts blindly against a different schema
 - before any batch run, verify the script's expected columns, prompt inputs, and output fields against the active dataset
 - if multiple datasets share one workspace, keep rewrite scripts, caches, and outputs dataset-scoped rather than reusing one global scratch area
 
-Read [rewrite-runners.md](rewrite-runners.md) when you want bundled Gemini rewrite templates to start from.
+Read [rewrite-runners.md](rewrite-runners.md) when you want the configurable Gemini runners.
 
 ## Model transmission allowlist
 

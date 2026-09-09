@@ -23,6 +23,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
+from gemini_rewrite_common import atomic_write_text
+
 
 API_ROOT = "https://api.airtable.com/v0"
 CONTENT_ROOT = "https://content.airtable.com/v0"
@@ -345,10 +347,12 @@ def optimize_one(
     }
 
 
-def prepare(args: argparse.Namespace, rows: list[dict[str, str]]) -> dict[str, Any]:
+def prepare(args: argparse.Namespace, rows: list[dict[str, str]], reusable=None) -> dict[str, Any]:
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    targets = [row for row in rows if row.get(args.source_field, "").strip()]
-    results: list[dict[str, Any]] = []
+    results: list[dict[str, Any]] = list(reusable or [])
+    reused_ids = {image["id"] for image in results}
+    all_targets = [row for row in rows if row.get(args.source_field, "").strip()]
+    targets = [row for row in all_targets if row[args.id_field].strip() not in reused_ids]
     errors: list[dict[str, str]] = []
     with tempfile.TemporaryDirectory(prefix="ptah-images-") as temp_name:
         temp_dir = Path(temp_name)
@@ -408,7 +412,8 @@ def prepare(args: argparse.Namespace, rows: list[dict[str, str]]) -> dict[str, A
             "upscale": False,
             "requireOpaque": args.require_opaque,
         },
-        "sourceCount": len(targets),
+        "sourceCount": len(all_targets),
+        "reusedCount": len(reused_ids),
         "processedCount": len(results),
         "errorCount": len(errors),
         "errors": errors,
@@ -424,10 +429,7 @@ def prepare(args: argparse.Namespace, rows: list[dict[str, str]]) -> dict[str, A
         "images": results,
     }
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
-    args.manifest.write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    atomic_write_text(args.manifest, json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
     return manifest
 
 
@@ -436,30 +438,43 @@ def reuse_manifest(
     rows: list[dict[str, str]],
 ) -> dict[str, Any]:
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
-    expected = {
-        row[args.id_field].strip()
-        for row in rows
-        if row.get(args.source_field, "").strip()
-    }
-    actual = {image["id"] for image in manifest.get("images", [])}
-    if expected != actual or manifest.get("errorCount"):
-        raise RuntimeError("Manifest does not cleanly match the input dataset")
-    for image in manifest["images"]:
-        path = Path(image["optimized"]["path"])
-        value = path.read_bytes()
-        if (
-            len(value) != image["optimized"]["bytes"]
-            or sha256(value) != image["optimized"]["sha256"]
-        ):
-            raise RuntimeError(f"Manifest integrity check failed: {path}")
-        info = identify(args.magick, path)
-        if (
-            info["format"].upper() != "WEBP"
-            or max(info["width"], info["height"]) > args.max_dimension
-            or (args.require_opaque and not info["opaque"])
-        ):
-            raise RuntimeError(f"Manifest image check failed: {path}")
-    return manifest
+    images = manifest.get("images", [])
+    by_id = {image["id"]: image for image in images}
+    if len(by_id) != len(images):
+        raise ValueError("Manifest contains duplicate ids")
+    expected_policy = {"maximumWidth": args.max_dimension, "maximumHeight": args.max_dimension,
+                       "quality": args.quality, "requireOpaque": args.require_opaque,
+                       "format": "WebP", "autoOrient": True, "stripMetadata": True,
+                       "preserveAspectRatio": True, "upscale": False}
+    policy_matches = all(manifest.get("policy", {}).get(key) == value for key, value in expected_policy.items())
+    reusable = []
+    for row in rows:
+        source = row.get(args.source_field, "").strip()
+        image = by_id.get(row[args.id_field].strip())
+        if not source or not image or not policy_matches or image.get("source") != source:
+            continue
+        if urlparse(source).scheme in {"http", "https"}:
+            if args.refresh_remote_sources:
+                continue
+        else:
+            local_path = Path(source)
+            if not local_path.is_absolute():
+                local_path = args.source_root / local_path
+            if not local_path.is_file() or sha256(local_path.read_bytes()) != image.get("original", {}).get("sha256"):
+                continue
+        try:
+            path = Path(image["optimized"]["path"])
+            value = path.read_bytes()
+            if len(value) != image["optimized"]["bytes"] or sha256(value) != image["optimized"]["sha256"]:
+                continue
+            info = identify(args.magick, path)
+            if (info["format"].upper() != "WEBP" or max(info["width"], info["height"]) > args.max_dimension
+                    or (args.require_opaque and not info["opaque"])):
+                continue
+        except (OSError, KeyError, RuntimeError, subprocess.SubprocessError):
+            continue
+        reusable.append(image)
+    return prepare(args, rows, reusable=reusable)
 
 
 def fetch_records(args: argparse.Namespace, token: str) -> list[dict[str, Any]]:
@@ -590,6 +605,7 @@ def replace_one(
         upload_url,
         token,
         method="POST",
+        attempts=1,  # An uncertain append may have succeeded; inspect before retrying.
         payload={
             "contentType": "image/webp",
             "file": base64.b64encode(path.read_bytes()).decode("ascii"),
@@ -774,10 +790,7 @@ def sync(
         ),
     }
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    atomic_write_text(args.report, json.dumps(report, ensure_ascii=False, indent=2) + "\n")
     return report
 
 
@@ -811,6 +824,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--progress-every", type=int, default=25)
     parser.add_argument("--magick", default=shutil.which("magick") or "")
     parser.add_argument("--reuse-manifest", action="store_true")
+    parser.add_argument("--refresh-remote-sources", action="store_true", help="Refetch remote sources even when their URL is unchanged")
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--only", default="")
     parser.add_argument("--force", action="store_true")

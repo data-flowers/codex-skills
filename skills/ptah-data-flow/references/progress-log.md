@@ -12,7 +12,7 @@ questions without replaying project history.
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "dataset": "example-map",
   "stage": "stage-6-maintenance",
   "status": "published",
@@ -38,7 +38,11 @@ questions without replaying project history.
     "latestManifest": "./data/manifest.json"
   },
   "sourceHash": "sha256:...",
-  "canonicalHash": "sha256:...",
+  "hashes": {
+    "canonical": "sha256:...",
+    "publishArtifact": "sha256:...",
+    "uploadArtifact": "sha256:..."
+  },
   "taxonomyVersion": "v1",
   "blockers": [],
   "next": ["Refresh only changed source rows"],
@@ -70,6 +74,12 @@ Before a milestone handoff, first/full publish, or high-risk operation, compare
 the state file with the applicable canonical and verification artifacts. Run the
 publication gate only when publication readiness is actually being established
 or materially changed.
+
+The version-2 shape uses artifact-specific keys under `hashes`. The dataset
+checker also reads version-1 nested hashes and legacy `canonicalHash`. It compares
+only the requested artifact role, and skips a state entry that names a different
+file. Freshness findings describe handoff drift; they are separate from data
+validity and do not block an intentional update before state reconciliation.
 
 ## Historical progress log
 

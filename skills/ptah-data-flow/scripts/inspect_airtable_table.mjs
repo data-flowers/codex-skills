@@ -1,72 +1,10 @@
 #!/usr/bin/env node
+import { API_ROOT, isMain, arg, hasFlag, fail, parseAirtableUrl, fetchJson, fetchBaseSchema } from "./airtable_common.mjs";
 
 // Usage:
 //   AIRTABLE_TOKEN=pat... node inspect_airtable_table.mjs --url "https://airtable.com/app.../tbl.../viw...?blocks=hide"
 //   AIRTABLE_TOKEN=pat... node inspect_airtable_table.mjs --base app... --table tbl... [--view viw...]
 //   AIRTABLE_TOKEN=pat... node inspect_airtable_table.mjs --url "..." --json
-
-const API_ROOT = "https://api.airtable.com/v0";
-
-function arg(name, fallback = null) {
-  const i = process.argv.indexOf(`--${name}`);
-  return i >= 0 ? process.argv[i + 1] : fallback;
-}
-
-function hasFlag(name) {
-  return process.argv.includes(`--${name}`);
-}
-
-function fail(message) {
-  console.error(message);
-  process.exit(1);
-}
-
-function parseAirtableUrl(rawUrl) {
-  const url = new URL(rawUrl);
-  const match = url.pathname.match(
-    /^\/(?<base>app[a-zA-Z0-9]+)\/(?<table>tbl[a-zA-Z0-9]+)(?:\/(?<view>viw[a-zA-Z0-9]+))?\/?$/
-  );
-
-  if (!match?.groups?.base || !match?.groups?.table) {
-    throw new Error(`Could not parse Airtable base/table IDs from URL: ${rawUrl}`);
-  }
-
-  return {
-    baseId: match.groups.base,
-    tableId: match.groups.table,
-    viewId: match.groups.view || null,
-  };
-}
-
-async function fetchJson(url, token) {
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  });
-
-  const text = await res.text();
-  let data = null;
-
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-
-  if (!res.ok) {
-    const detail = typeof data === "string" ? data : JSON.stringify(data, null, 2);
-    throw new Error(`${res.status} ${res.statusText}\n${detail}`);
-  }
-
-  return data;
-}
-
-async function fetchBaseSchema(baseId, token) {
-  const url = `${API_ROOT}/meta/bases/${baseId}/tables`;
-  return fetchJson(url, token);
-}
 
 async function countRecords(baseId, tableId, viewId, token) {
   let offset = null;
@@ -197,6 +135,7 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  fail(String(error.message || error));
+if (isMain(import.meta.url)) main().catch((error) => {
+  console.error(String(error.message || error));
+  process.exitCode = 1;
 });

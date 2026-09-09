@@ -7,7 +7,7 @@ Most people using this skill are doing one of three things:
 - sanity-checking whether the current dataset is actually done
 
 You should not need to explain the whole workflow every time.
-A short prompt is enough. The skill should pick up the rest from the working area, existing artifacts, and the progress log.
+A short prompt is enough. The skill should pick up the rest from the working area, existing artifacts, and compact current state.
 
 ## 1. Start a new run
 

@@ -1,117 +1,61 @@
-# Airtable boundary
+# Airtable publication boundary
 
-Use this reference when publish, schema, permissions, or connection repair is involved.
+Use for first/full publication, schema changes, or surprising remote state.
+For routine edits read [maintenance](airtable-maintenance.md); for credentials
+and Ptah test/save read [connection setup](airtable-connection.md).
 
-Default operating assumption: one Ptah process on one computer is the only
-writer. On an already verified table, routine maintenance is a narrow local
-validation plus PATCH. A successful Airtable response completes the operation;
-do not add a separate readback or defensive workflow for concurrency that does
-not yet exist.
+## Contract and artifacts
 
-## Contents
+Airtable stores and publishes the canonical local data. Field names, canonical
+mappings, accepted types, computed fields, and upload exclusions are maintained
+in [the executable contract](../scripts/ptah_contract.json). Read
+[contracts.md](contracts.md) for domain semantics.
 
-- [Airtable's role](#airtables-role)
-- [Normal ownership flow](#normal-ownership-flow)
-- [The current downstream contract](#the-current-downstream-contract)
-- [Local publish artifact vs upload artifact](#local-publish-artifact-vs-upload-artifact)
-- [New-table Updated At provisioning](#new-table-updated-at-provisioning)
-- [Clean sibling-table migration](#clean-sibling-table-migration)
-- [What to inspect first](#what-to-inspect-first)
-- [View semantics and control fields](#view-semantics-and-control-fields)
-- [Generic schema audit](#generic-schema-audit)
-- [Incremental Airtable maintenance](#incremental-airtable-maintenance)
-- [What to ask for before first remote publish](#what-to-ask-for-before-first-remote-publish)
-- [Update behavior for existing Airtable tables](#update-behavior-for-existing-airtable-tables)
-- [Post-upload verification](#post-upload-verification)
-- [Share step for Ptah connection](#share-step-for-ptah-connection)
-- [Ptah Airtable connection API](#ptah-airtable-connection-api)
-- [PAT requirements](#pat-requirements)
-- [URL and identifier rules](#url-and-identifier-rules)
-- [Common permission failures](#common-permission-failures)
-- [Field-type expectations](#field-type-expectations)
-- [Boundary workflow](#boundary-workflow)
-- [Bundled boundary tools](#bundled-boundary-tools)
+Keep the 12-field Ptah artifact separate from the upload artifact. General
+uploads omit `Logo` and `Updated At`; attachment work has its own helper.
+`Id` must remain opaque text in both CSV and Airtable. `Published` is an optional
+control field outside the core contract and uses real booleans.
 
-## Airtable's role
+Before a full publication, validate the complete canonical or upload shape:
 
-In this workflow, Airtable is:
+```bash
+python3 scripts/audit_ptah_dataset.py entities.canonical.json \
+  --kind canonical --taxonomy taxonomy.json --require-gate publication \
+  --output publication-audit.json
+```
 
-- storage
-- publish plumbing
-- schema boundary for Ptah compatibility
+The gate checks field presence, ids, temporal sanity, description coverage,
+publication eligibility, and membership in the supplied taxonomy. Optional
+values may be blank. Coverage is not evidence verification: review source
+quality and unresolved claims separately. State freshness is reported separately
+and does not prevent intentional edits from reaching a new milestone.
 
-It is not the main editing model.
+For high-risk publication, create a manifest with expected rows, unique ids,
+create/update/skip counts, omitted fields, controls, exclusions, and destination
+view count. Record artifact paths in current state after verification succeeds.
 
-If Airtable gets messy, prefer rebuilding or repairing from the local working dataset before doing manual base surgery.
+## Establish the remote target
 
-## Normal ownership flow
+Reuse the target and authorized credential source recorded in current state.
+If remote work is requested and the required PAT is missing, ask for the missing
+credential source while continuing independent local work. Follow
+[credential-sourcing.md](credential-sourcing.md); do not search unrelated projects.
+If no base exists, have the user choose or create one. Do not assume API base
+creation. GUI CSV import remains available when API access is not configured.
 
-The normal flow for this skill is:
+Inspect once before first publish, when the boundary is stale, or when behavior
+is surprising:
 
-1. the user has or creates their own Airtable base
-2. the user can import the curated CSV through the Airtable GUI
-3. if Ptah connection is the next downstream step, the user shares the Airtable base with the required admin contacts
-4. if the user wants the skill to inspect, repair, or upload through the API, the user creates a PAT with the required scopes and access to that base
-5. the skill inspects, audits, and repairs the target table shape when there is a safe deterministic path
-6. the skill uploads the curated CSV into that base when API publish is actually in scope
+```bash
+node scripts/inspect_airtable_table.mjs --url 'https://airtable.com/appExample/tblExample/viwExample' --json
+node scripts/audit_airtable_schema.mjs --base appExample --table tblExample --json
+```
 
-Do not assume base creation over API in the default workflow.
-
-Default publish path:
-
-- use the API helpers when the target is known and an authorized PAT is already
-  present in the current workspace or explicitly named source
-- otherwise use GUI CSV import; do not search unrelated projects for a working PAT
-- if the user simply says they want Airtable, default to GUI guidance unless an
-  existing remote target and authorized PAT are already recorded in current state
-
-Remote-boundary path:
-
-- only when the progress log already records an Airtable URL or other active remote-boundary state
-- or when the user provides an Airtable URL
-
-## The current downstream contract
-
-The target fields are:
-
-1. `Id`
-2. `Category`
-3. `Subcategory`
-4. `Name`
-5. `Website`
-6. `Logo`
-7. `Description`
-8. `Year Founded`
-9. `Email`
-10. `Tech Capabilities`
-11. `Updated At`
-12. `AI Context`
-
-Do not assume names or types. Inspect the real base.
-
-## Local publish artifact vs upload artifact
-
-A clean local 12-field Ptah CSV is the canonical publish shape, but it is not always the safest API upload file.
-
-CSV is a value transport, not an Airtable schema transport. It cannot encode or preserve computed field types such as `lastModifiedTime`.
-
-After inspecting the Airtable schema, create a separate upload artifact when needed. This artifact may:
-
-- omit fields that are blank and incompatible with the remote type, such as empty attachment fields
-- omit fields that Airtable manages, such as `Updated At`
-- omit or defer fields whose source values do not match the remote field type, such as a free-text capability list going into `multipleSelects`
-- include only a stable merge key plus one enriched field for partial updates, such as `Id` and `AI Context`
-
-For a first/full publish or another high-risk operation, create a verification
-manifest beside the upload artifact. Record exact row and unique-id counts,
-intended create/update/skip counts, omitted fields, control field values,
-placeholder exclusions, and the expected destination-view count.
-Treat `Id` as text in both the artifact and remote schema.
-
-For a first/full publish, record both artifacts separately in the progress log.
-Do not treat an upload-safe subset as a replacement for the canonical local Ptah artifact.
-
-For Airtable row import, omitting `Updated At` is mandatory. The local canonical artifact may retain the blank column for the 12-field contract, but no GUI import or API upsert should use that column to create or populate the Airtable field.
+Resolve ids and actual table/view names from metadata. The schema audit checks
+exact names, invisible name pollution, missing fields, and accepted field types.
+Use `mutate_airtable_schema.mjs plan` then `apply` for deterministic missing-field
+creation and name repair within the requested scope. It reports type mismatches;
+converting types requires a deliberate migration. Reinspect after schema changes.
 
 ## New-table `Updated At` provisioning
 
@@ -155,34 +99,9 @@ clean map table.
 6. Audit again, then verify row ids, record count, control-field state, AI
    Context completeness, and attachment preservation. Check logo completeness
    only when logo population was explicitly in scope.
-7. Record the new table and view ids and names in the progress log. Treat that
+7. Record the new table and view ids and names in current state. Treat that
    clean table as the active boundary; keep the original table recorded as
    untouched or superseded, not silently forgotten.
-
-## What to inspect first
-
-Use:
-
-- [`scripts/inspect_airtable_table.mjs`](../scripts/inspect_airtable_table.mjs)
-- [`scripts/audit_airtable_schema.mjs`](../scripts/audit_airtable_schema.mjs)
-- [`scripts/mutate_airtable_schema.mjs`](../scripts/mutate_airtable_schema.mjs)
-
-This is useful because it tells you:
-
-- `baseId`
-- `tableId`
-- `viewId`
-- table name
-- view name
-- record count
-- real schema
-- field types
-
-It also helps separate:
-
-- permission problems
-- base or table lookup problems
-- schema drift
 
 ## View semantics and control fields
 
@@ -208,600 +127,34 @@ Record explicit include/exclude counts in the upload manifest.
 
 Before changing single-select control fields, inspect their allowed choices. Do not invent states such as `Unpublished` or `Inactive`; use an existing valid value or stop for a schema decision. Treat the complete set of fields used by the view filter as one publication-control tuple. Changing `Published` alone is insufficient when the view also filters on `Status` or `Record State`.
 
-## Generic schema audit
+## Upload and acceptance
 
-Treat schema audit as a distinct step, not just a quick glance at field names.
+Validate the CSV locally before requests. The upsert helper rejects missing,
+blank, or duplicate merge keys; protected columns; invalid types; and malformed
+row widths. It omits empty values unless `--clear-fields` explicitly names them.
+Use text merge keys and send only the columns intended to change.
 
-At minimum, audit:
-
-- exact field names against the Ptah contract
-- hidden header pollution such as BOM or leading/trailing whitespace
-- missing required fields
-- truly blocking boundary field types, especially `Updated At`
-
-Examples of schema issues this should catch:
-
-- `Id` is really `﻿Id`
-- `Updated At` is not a `lastModifiedTime` field
-- a required field is missing or renamed
-
-When a schema problem is found:
-
-- record it in the progress log as a schema issue, not a data issue
-- repair it directly if the bundled mutation helper can do it
-- otherwise tell the user exactly what still needs manual repair
-- do not stop on non-blocking Airtable cleanup unless the user explicitly asks for schema cleanup
-- `Updated At` is not non-blocking cleanup; if it is not `lastModifiedTime`, the boundary is still blocked
-
-This makes the workflow more generic than special-casing one broken header.
-
-Use the bundled audit helper for this:
-
-- [`scripts/audit_airtable_schema.mjs`](../scripts/audit_airtable_schema.mjs)
-
-Use it before hand-editing the Airtable table when you need a clean answer on whether the remote schema is actually Ptah-compatible.
-
-If the audit reveals a contract mismatch, use the bundled mutation helper next:
-
-- [`scripts/mutate_airtable_schema.mjs`](../scripts/mutate_airtable_schema.mjs)
-
-Use it in this order:
-
-1. inspect
-2. audit
-3. mutate the schema fixes the helper knows how to make
-4. inspect again
-5. continue with upload or Ptah connection work
-
-The current direct repairs are:
-
-- rename polluted field names such as `﻿Id` to exact contract names
-- create missing contract fields when the helper has a deterministic create path
-
-The helper does not repair Airtable field types. If a non-blocking type cleanup would require the Airtable UI, do not treat it as a blocker by default.
-
-Exception:
-
-- `Updated At` must be a real Airtable `lastModifiedTime` field
-- if it is not, treat that as a blocking schema defect
-- repair it directly when the API path is available
-- otherwise tell the user exactly what manual Airtable change is still required before calling the boundary clean
-
-Practical Airtable limitation:
-
-- Airtable's Metadata API may reject creating a `lastModifiedTime` field with `UNSUPPORTED_FIELD_TYPE_FOR_CREATE`
-- Airtable may also reject direct type conversion from `dateTime` to `lastModifiedTime`
-- if you try a rename-plus-create repair, make the operation rollback-safe and verify the final field names afterward
-- if API repair is rejected, tell the user to repair `Updated At` in the Airtable UI and rerun the schema audit afterward
-- for a not-yet-imported table, require that UI repair before importing rows; do not let CSV import create a temporary `dateTime` field
-
-If something still cannot be repaired by the helper and it is actually blocking the downstream flow, call it out plainly as remaining manual repair.
-
-For Ptah connection work, use this inspect step before building the connection payload.
-
-The Airtable URL gives you ids:
-
-- `baseId`
-- `tableId`
-- `viewId`
-
-The Ptah connection payload needs:
-
-- `baseId`
-- `tableName`
-- `view`
-
-So the normal sequence is:
-
-1. parse the Airtable URL
-2. get the Airtable PAT
-3. run [`scripts/inspect_airtable_table.mjs`](../scripts/inspect_airtable_table.mjs)
-4. run [`scripts/audit_airtable_schema.mjs`](../scripts/audit_airtable_schema.mjs)
-5. if the audit shows a contract mismatch, run [`scripts/mutate_airtable_schema.mjs`](../scripts/mutate_airtable_schema.mjs) and inspect again
-6. resolve the real table name and view name from the remote schema
-7. write both ids and names into the progress log
-8. use those resolved values for Ptah connection `test`
-9. if `test` succeeds, run `save`
-
-Do not ask the user to translate Airtable ids into names by hand.
-
-If you already have:
-
-- an Airtable URL
-- an Airtable PAT
-
-you have enough to inspect the target and resolve the required Airtable names yourself.
-
-You also have enough to run the schema audit and apply safe deterministic schema repairs yourself.
-
-## Incremental Airtable maintenance
-
-Use this when the table is already published and the user asks to update one row, one new row, missing `AI Context`, stale descriptions, or another narrow data-quality issue.
-
-Default sequence:
-
-1. reuse the recorded Airtable target, stable ids, credential source, and canonical source path
-2. identify the smallest target set from the canonical local data and the user's requested change:
-   - explicit record id
-   - explicit entity name
-   - rows where the target field is blank
-   - rows whose source-field hash changed since the cached generation
-3. generate or repair only those rows
-4. validate only the changed values, ids, and category/subcategory pairs locally
-5. update the canonical dataset
-6. PATCH Airtable by record id or stable merge key with only the intended changed field(s)
-7. accept a successful Airtable response as completion and stop
-
-For this routine path, do not run a schema preflight, generic dry run, remote
-readback, full export, count check, whole-dataset distribution, state/hash
-reconciliation, browser check, or build a snapshot, manifest, guard ledger, or
-rollback CSV. Narrow field omission is the preservation mechanism. Add heavier
-controls only for a first/full publish, large import or delete, destructive
-operation, schema mutation, attachment replacement, publication or
-view-membership change, deployment, ambiguous/stale remote state, surprising API
-behavior, an explicit user request, or another concrete high-risk condition.
-
-If concurrent writers later become a real operating condition, fetch only the
-touched rows immediately before the PATCH and compare only the target fields
-with their previous canonical values. Patch matching rows and report conflicting
-rows without overwriting them. Do not introduce locks, global diffs, revision
-manifests, or full-table reconciliation for normally small concurrent changes.
-
-When a local seed list gained entries:
-
-1. diff the current raw seeds against the source aliases preserved in the
-   canonical dataset
-2. research and canonicalize only unseen seeds
-3. dedupe new candidates against existing websites, names, and known aliases
-4. preserve all seed aliases when multiple seeds resolve to one entity
-5. assign stable ids only to truly new entities
-6. generate a new-row upload artifact and upload only that delta
-7. only when explicitly requested, handle new logos as a separate attachment delta
-8. for a large batch or publish-state change, perform the applicable
-   comprehensive verification; otherwise trust the successful narrow PATCH
-
-For single-field updates, the PATCH payload must be narrow:
-
-```json
-{
-  "records": [
-    {
-      "id": "rec...",
-      "fields": {
-        "AI Context": "..."
-      }
-    }
-  ]
-}
+```bash
+node scripts/upsert_airtable_csv.mjs --base appExample --table tblExample \
+  --csv entities.upload.csv --execute
 ```
 
-Do not send full row payloads for maintenance updates. This is especially important for attachment fields such as `Logo`; omitting `Logo` from a PATCH preserves it, while sending a stale or malformed `Logo` value can damage it.
-
-### Logo attachment fast path
-
-Use this when the user asks to add or replace a logo for one known entity in an already-published Airtable table.
-
-If the source is oversized, multiple logos need recurring refreshes, or
-optimized Airtable storage is part of the request, read
-[`attachment-images.md`](attachment-images.md) and use or adapt
-[`scripts/optimize_airtable_attachments.py`](../scripts/optimize_airtable_attachments.py).
-
-1. read the progress log for the Airtable ids, PAT status, and current export path
-2. locate the live target row by current Airtable export or filtered records API; prefer the Airtable `record_id` over CSV `Id`
-3. build and review a first-party candidate inventory before selecting one stable,
-   official, publicly reachable image URL:
-   - inspect HTML icon links, manifests, metadata, CSS/JS references, official
-     asset directories, and reasonable same-origin sibling filenames and formats
-   - do not stop at a tiny root favicon when the site may expose a larger logo,
-     animated favicon, app icon, wordmark, or product mark elsewhere
-   - download and visually compare plausible candidates; reject unrelated UI
-     glyphs or decorative assets even when their paths contain `logo` or `icon`
-   - prefer an explicit official logo/brand asset, then a verified official
-     favicon, site icon, or app icon suitable for card use
-   - avoid broad image search unless the official site does not expose a usable asset
-   - avoid date/header/hero assets when a standalone square or wordmark logo exists
-   - if the logo is white on transparent and cards are likely light, prefer an official square icon or colored-background variant
-   - if the first-party pass finds nothing suitable, leave `Logo` blank; create
-     a non-official wordmark only with explicit user approval and provenance
-   - treat SVG and ICO as source formats only; convert them locally to a reviewed
-     PNG or WebP and do not PATCH the original URL into Airtable
-4. check the image once before patching:
-   - `HEAD` or download should return `200`
-   - content type should be a supported raster image type Airtable can ingest;
-     direct SVG and ICO attachments are unsupported
-   - dimensions should be suitable for display, usually square or a clear wordmark
-   - if either dimension exceeds the viewer's realistic render size, transform
-     it locally before upload; use a 256-pixel maximum dimension by default and
-     treat 512 pixels as a ceiling for verified high-density or detailed needs
-   - inspect alpha and contrast on both light and dark card surfaces; for a
-     white/translucent mark, composite it onto an official brand or site-theme
-     background and run the optimizer with `--require-opaque`
-5. PATCH only the `Logo` field:
-
-```json
-{
-  "records": [
-    {
-      "id": "rec...",
-      "fields": {
-        "Logo": [
-          {
-            "url": "https://example.com/logo.png",
-            "filename": "entity-logo.png"
-          }
-        ]
-      }
-    }
-  ]
-}
-```
-
-6. verify the same record after Airtable processes the attachment:
-   - `Logo` attachment count is exactly what was intended
-   - attachment `type`, `size`, `width`, `height`, URL, and thumbnails are present when available
-   - untouched fields such as `Name`, `Website`, `AI Context`, and `Published` still have expected values
-   - download the Airtable-served full image and generated thumbnail; require
-     the full-file hash to match the reviewed asset and the thumbnail to remain
-     opaque when a contrast background was required
-7. re-export the view only after the successful patch if the local export is used as a handoff artifact
-8. update the progress log with the record id, source image URL, attachment count, dimensions, and refreshed export path
-
-This fast path should normally avoid full schema audits, AI generation, full CSV rewrites, and repeated page scraping unless the remote boundary is unknown or the logo source is ambiguous.
-
-For transformed attachments, upload the optimized bytes first, identify the
-new attachment id, then PATCH only `Logo` to retain that id. Never clear the
-old attachment before the upload succeeds.
-
-SVG/ICO conversion is always a transformed-attachment workflow. Run the local
-prepare phase first, then upload and attach the converted raster bytes. A public
-SVG/ICO URL is not a valid fast-path attachment payload.
-
-Preservation checks after attachment maintenance:
-
-- compare untouched fields for every patched record before and after upload when a local pre-patch export exists
-- always check attachment presence/count for `Logo` on touched rows
-- if a URL-like Airtable attachment export changes but the attachment is still present, treat that as likely Airtable URL rotation, not automatically as data loss
-- if an attachment count changes, stop and report the row ids before doing further writes
-- re-run the schema audit if the update touched boundary setup or if the remote behavior looks surprising
-
-## What to ask for before first remote publish
-
-Priority rule:
-
-- first check the progress log for an existing Airtable URL, base, table, view, and PAT status
-- if that remote state is already recorded, treat it as the current boundary context
-- only ask the user again if the progress log is missing that information or looks stale
-
-If the user wants remote Airtable work, the key input is:
-
-- an Airtable URL
-
-If the user provides an Airtable URL:
-
-- treat that as the remote target
-- record the URL and parsed ids in the progress log
-- ask for the Airtable PAT immediately
-- ask for the full Airtable PAT secret, not just the visible token id shown later in the Airtable UI
-- tell the user to copy and save the full PAT when they create it, because Airtable may only show the short token id after the first view
-- once the PAT is received, prefer storing it in a working-area `.env` file that is excluded from git and run API helpers through environment variables rather than repeating the token inline in commands
-- do not paste raw PAT values into the progress log or routine handoff notes; record only whether the token is present and where the local `.env` lives if that path matters
-- do not continue with remote inspection or upload until the PAT is available
-- once the PAT is available, inspect and audit the remote schema before the first
-  upload or Ptah connection work; reuse the verified boundary afterward
-- if the audit shows a contract mismatch, use the bundled mutation helper instead of asking the user to rename fields by hand
-
-If the user refers to an existing Airtable key instead of pasting one, for example "use the Airtable token from aipanic" or "use the existing PAT from euro-stack":
-
-- find the referenced local `.env` or trusted workspace source
-- copy the Airtable secret and any explicitly needed Airtable ids into the current working area's `.env`
-- keep the current target base/table/view ids authoritative if the user supplied a new target; do not accidentally reuse stale ids from the source `.env`
-- make sure the current working area's `.env` is gitignored
-- record only `Airtable PAT: present` in the progress log, plus the fact that the token was copied from a local named source if useful
-- do not print the token or keep using inline secret-bearing commands once the local `.env` exists
-
-If the user says only “use the PAT” and the active environment has no PAT:
-
-- do not enumerate or test credentials from unrelated projects
-- ask the user to name the authorized source or configure the active `.env`
-- read [credential-sourcing.md](credential-sourcing.md) for the shared rule
-
-If the user has no Airtable URL yet:
-
-- do not pretend remote inspection is possible
-- default to GUI CSV import guidance
-- ask the user to create or choose the Airtable base and send the URL if they want the skill to inspect, repair, or upload the remote table
-
-If the user does not have a base yet, the default path is:
-
-- ask them to create or choose the Airtable base first
-- then continue with schema inspection and upload
-
-
-## Update behavior for existing Airtable tables
-
-Prefer minimal, targeted Airtable changes. When the table already contains records, do not delete and reupload the table by default.
-
-Default order for API updates:
-
-1. validate the changed values locally and update the canonical artifact
-2. derive an upload-safe subset with only the merge key and changed fields
-3. patch/upsert only those fields
-4. accept a successful API response and stop
-
-Do not add a schema preflight, dry run, guarded remote preflight, readback, or
-rollback artifact to routine narrow updates on a known clean table.
-
-Full replacement is allowed only when one of these is true:
-
-- the user explicitly asks to replace or discard existing rows
-- stale rows must be removed and there is no reliable delete-by-diff path
-- the table is a disposable staging table
-- record identity does not matter and this is recorded in the progress log
-
-For taxonomy-only updates, preserve Airtable record identity when possible. Patch `Category`, `Subcategory`, and any regenerated text fields against a stable key such as `Id`; do not resend attachment, multiselect, or Airtable-managed fields unless they actually need to change.
-
-For capability-only updates on compact viewers, derive an `Id`, `Tech Capabilities` artifact. Prefer exactly three high-signal semicolon-delimited labels around 16 characters or fewer each and PATCH only those fields.
-
-For publish-state changes, PATCH only the stable key plus every control field
-required by the destination view, using real typed values. For example, a
-retirement may require `Published=false`, `Status=Retired`, and
-`Record State=Retired`; derive the actual tuple from the view and schema instead
-of assuming these labels exist. If the same bounded operation also fills
-`AI Context`, include it in the narrow artifact; verify every changed field and
-confirm that logos and record identity remain unchanged.
-
-If rows must be removed, prefer a targeted delete of only rows absent from the trusted source over deleting every record and reuploading the survivors.
-
-## Post-upload verification
-
-Do not perform a separate verification pass after routine narrow maintenance on
-a known clean table. Airtable's successful response is the confirmation.
-
-After a first/full publish, large import or delete, schema or attachment change,
-publication/view-membership change, deployment, or surprising response:
-
-- inspect the table or view again to verify record count
-- read back a small sample of the intended fields, such as `Id`, `Name`, and `AI Context`
-- for routine narrow maintenance, verify the intended remote values and relevant counts; do not require unrelated-field hash comparison when unrelated fields were omitted from the payload
-- for enrichment updates, count created vs updated records and confirm the update did not create duplicates
-- verify destination-view count and every publish-control or grouping field required for rows to appear downstream
-- for retirement, verify the full table still contains the preserved records, the published view excludes them, and no unrelated records left the view
-- verify preserved original taxonomy helper fields or context markers when reclassification was part of the request
-- record the verification when it represents a stage milestone or material decision
-- reconcile the compact state file when the operation changes stage, publication
-  status, remote boundary, blockers, or next actions
-
-After a GUI CSV import:
-
-- enable **Exclude first row in import** when the CSV contains headers
-- map every intended field and confirm omitted fields were not recreated
-- require the preview count to equal the manifest count before selecting Import
-- cancel rather than accepting an unexplained off-by-one count
-- verify `Id` remains text and `Updated At` remains `lastModifiedTime`
-
-## Share step for Ptah connection
-
-After the user has imported the CSV into Airtable and has the correct table/view:
-
-1. click the `Share` button
-2. under `Invite collaborators`, use the invite-by-email field
-3. add:
-   - `aleks@data.flowers`
-   - `Davor Strehar`
-4. uncheck `Notify people`
-
-After that, the base is ready for the Ptah connection flow.
-
-If the user asks how to continue after GUI import, this should be the default next step.
-
-## Ptah Airtable connection API
-
-If a running Ptah admin surface is in scope, the bundled frontend shows a deterministic Airtable connection admin API:
-
-- `POST /airtable-admin/test`
-- `POST /airtable-admin`
-
-The frontend form sends these payload fields:
-
-- `id`
-- `name`
-- `baseId`
-- `tableName`
-- `view`
-- `fieldMap`
-- `layoutOverrides`
-- `mapInfo`
-- `lastModifiedField`
-- `createdAt`
-- `updatedAt`
-
-Do not guess this payload shape from memory. Reuse the bundled helper:
-
-- [`scripts/ptah_airtable_connection.mjs`](../scripts/ptah_airtable_connection.mjs)
-
-Use this helper for:
-
-- `test`
-- `save`
-
-For this skill, keep the user-facing workflow simple:
-
-- `test` the connection
-- `save` a connection
-
-If the connection settings changed, save a fresh connection and record the new connection id in the progress log.
-
-If Ptah connection setup is in scope:
-
-- first inspect the Airtable target so you have the real table name and view name
-- build the Ptah payload from `baseId` plus the resolved `tableName` and `view`, not from Airtable table/view ids
-- test the Ptah Airtable connection before saving it
-- do not ask the user for base name, table name, or view name if those can already be resolved from the Airtable URL plus PAT
-- record the Ptah admin origin in the progress log if known
-- record the resolved Airtable base, table, and view names after inspect
-- record whether the Airtable connection has already been tested
-- record the saved Ptah connection id after a successful save
-- after save, call the live provider endpoint and verify expected count, unique ids, taxonomy coverage, one representative mapped row, and native timestamp behavior
-- prefer the deterministic helper over ad hoc fetch snippets
-
-## PAT requirements
-
-Use a personal access token from:
-
-- `https://airtable.com/create/tokens`
-
-Recommended scopes for this workflow:
-
-- `data.records:read`
-- `data.records:write`
-- `schema.bases:read`
-- `schema.bases:write`
-
-Recommended access:
-
-- grant access to the specific target base or workspace
-
-Important:
-
-- the PAT only works within the permissions of the user who created it
-- giving a PAT scopes is not enough; the token must also have access to the target base or workspace
-- if the user copied or newly created a base, make sure that base was added to the PAT's resource access
-- use the full PAT secret for API calls, not the short token id that Airtable may still show in the developer hub later
-- when asking for the PAT, tell the user to save the full secret immediately at creation time
-- do not write the PAT value into the progress log; record only whether it is present or missing
-
-## URL and identifier rules
-
-An Airtable URL usually contains:
-
-- base id like `app...`
-- table id like `tbl...`
-- view id like `viw...`
-
-Do not confuse names with ids.
-
-In practice you may need both:
-
-- ids to address the boundary reliably
-- names to explain what the user is looking at
-
-## Common permission failures
-
-### Metadata fetch fails
-
-If schema fetch fails, likely causes include:
-
-- token missing `schema.bases:read`
-- token has no access to the target base
-- wrong base id
-
-### Records API works but schema API fails
-
-This usually means:
-
-- the token can read records
-- but cannot read metadata
-
-Do not call the table “empty with known schema” unless metadata actually succeeded.
-
-### Create or publish fails on a copied base
-
-This often means:
-
-- the copied base was not added to the PAT's access list
-- or the PAT is missing write-related schema scope
-
-### User has a PAT but no target base
-
-This is not enough for the normal flow.
-
-Default behavior:
-
-- have the user create or choose the target base first
-- then inspect the real schema and upload into that base
-
-Do not promise API-created bases unless the user explicitly has an Airtable plan and API path that supports it.
-
-### User has a target Airtable URL but no PAT
-
-This is a real blocker for remote inspection, repair, or upload.
-
-Default behavior:
-
-- keep working locally if there is still local work to do
-- if the next step is remote Airtable work, ask for the PAT immediately
-- record PAT status as `missing` in the progress log
-
-## Field-type expectations
-
-Always inspect the actual base. Do not assume from memory.
-
-Examples of field semantics:
-
-- `Category`: may be `singleLineText` or `singleSelect`; check the real schema
-- `Subcategory`: usually a text-like field in this workflow, but confirm
-- `Updated At`: must be an Airtable `lastModifiedTime` field, not a normal text or date field
-- `AI Context`: normal long text is acceptable
-- `Published`: when present, use an Airtable checkbox and send JSON booleans,
-  not the strings `"true"` or `"false"`
-
-## Boundary workflow
-
-### Before first or full publish
-
-- confirm the user has a PAT with the required scopes
-- confirm the PAT has access to the target base or workspace
-- confirm whether the target base already exists
-- inspect schema
-- confirm field order
-- confirm field types
-- confirm required boundary fields
-- confirm base/table/view target
-- run the dataset gate and resolve publication eligibility for non-organizations
-- write an upload manifest with exact expected create/update/skip and view counts
-- for a new table, audit native `Updated At` before importing an upload artifact that omits it
-
-### During repair
-
-- inspect metadata first
-- determine whether the issue is access, schema, table lookup, or data quality
-- if the issue is data quality, route back upstream
-
-### Upload batching
-
-- For Airtable publish and maintenance jobs, process records in 100-record work batches by default.
-- If the Airtable endpoint or helper enforces a lower per-request record limit, keep the 100-record work batch but subchunk internally to the endpoint-safe request size.
-- Keep upload output phrased in both layers when relevant: work batches for operator progress, API requests for rate-limit/debugging clarity.
-
-### After first or full publish
-
-- verify record count
-- verify a few rows against the working dataset
-- rerun the schema audit and confirm `Updated At` remains `lastModifiedTime`
-- compare remote counts and samples with the upload manifest
-- reconcile `ptah-data-flow.state.json` with verified local and remote facts
-- only then debug Ptah viewer behavior
-
-## Bundled boundary tools
-
-- [`scripts/audit_ptah_dataset.py`](../scripts/audit_ptah_dataset.py)
-  - deterministic canonical, taxonomy-readiness, publication, upload, and state
-    freshness gate
-- [`scripts/inspect_airtable_table.mjs`](../scripts/inspect_airtable_table.mjs)
-  - schema and record inspection
-- [`scripts/audit_airtable_schema.mjs`](../scripts/audit_airtable_schema.mjs)
-  - contract-aware Airtable schema audit
-- [`scripts/upsert_airtable_csv.mjs`](../scripts/upsert_airtable_csv.mjs)
-  - generic dry-run or execute path for batched CSV upserts, including typed
-    checkbox conversion for optional control fields such as `Published`
-- [`scripts/ptah_airtable_connection.mjs`](../scripts/ptah_airtable_connection.mjs)
-  - Ptah Airtable connection test/save helper against `/airtable-admin`
-- [`scripts/optimize_airtable_attachments.py`](../scripts/optimize_airtable_attachments.py)
-  - SVG/ICO-to-WebP normalization, ImageMagick transform, manifest, upload-first
-    attachment replacement, and unrelated-field, opacity, served-byte, and
-    thumbnail verification
-- [`scripts/build_contrast_logo_card.py`](../scripts/build_contrast_logo_card.py)
-  - deterministic opaque brand-card compositing with dual keylines for white and
-    black surface compatibility
-
-Use these bundled tools by default. Do not go looking for other Airtable helpers elsewhere in the user's workspace unless the user explicitly points you to one.
+It groups work in 100-row batches and sends at most 10 records per API request.
+Without `--execute` it prepares a dry run; without `--boundary` it inspects
+metadata. The known-boundary path is documented in
+[maintenance](airtable-maintenance.md). A failed or uncertain mutation stops;
+inspect the affected rows before deciding whether to resume.
+
+After first/full publication or another high-risk operation:
+
+- Verify expected counts, unique ids, intended values, and publication/view membership.
+- Confirm `Updated At` remains native `lastModifiedTime` after imports or schema changes.
+- Verify preserved taxonomy helpers and attachment values when applicable.
+- Reconcile current state from verified artifacts, then diagnose downstream viewer behavior.
+
+For GUI import, exclude the header row, confirm the preview count against the
+manifest, map only intended fields, and omit `Logo` and `Updated At`. Cancel an
+unexplained count mismatch. A CSV cannot provision native computed-field types.
+
+Proceed to [Ptah connection setup](airtable-connection.md) when requested, and
+[gateway deployment](gateway-deployment.md) when hosting is in scope.

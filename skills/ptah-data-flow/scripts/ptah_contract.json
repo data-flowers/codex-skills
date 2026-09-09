@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "name": "Id",
+      "canonical": "id",
+      "createType": "singleLineText",
+      "acceptedTypes": [
+        "singleLineText"
+      ],
+      "upload": true,
+      "computed": false
+    },
+    {
+      "name": "Category",
+      "canonical": "categoryId",
+      "createType": "singleLineText",
+      "acceptedTypes": [
+        "singleLineText",
+        "singleSelect",
+        "multilineText"
+      ],
+      "upload": true,
+      "computed": false
+    },
+    {
+      "name": "Subcategory",
+      "canonical": "subcategories",
+      "createType": "singleLineText",
+      "acceptedTypes": [
+        "singleLineText",
+        "singleSelect",
+        "multipleSelects",
+        "multilineText"
+      ],
+      "upload": true,
+      "computed": false
+    },
+    {
+      "name": "Name",
+      "canonical": "name",
+      "createType": "singleLineText",
+      "acceptedTypes": [
+        "singleLineText",
+        "multilineText"
+      ],
+      "upload": true,
+      "computed": false
+    },
+    {
+      "name": "Website",
+      "canonical": "websiteUrl",
+      "createType": "url",
+      "acceptedTypes": [
+        "url",
+        "singleLineText"
+      ],
+      "upload": true,
+      "computed": false
+    },
+    {
+      "name": "Logo",
+      "canonical": "logoUrl",
+      "createType": "url",
+      "acceptedTypes": [
+        "url",
+        "multipleAttachments",
+        "singleLineText"
+      ],
+      "upload": false,
+      "computed": false
+    },
+    {
+      "name": "Description",
+      "canonical": "description",
+      "createType": "multilineText",
+      "acceptedTypes": [
+        "multilineText",
+        "singleLineText"
+      ],
+      "upload": true,
+      "computed": false
+    },
+    {
+      "name": "Year Founded",
+      "canonical": "yearFounded",
+      "createType": "singleLineText",
+      "acceptedTypes": [
+        "singleLineText",
+        "number"
+      ],
+      "upload": true,
+      "computed": false
+    },
+    {
+      "name": "Email",
+      "canonical": "publicEmail",
+      "createType": "singleLineText",
+      "acceptedTypes": [
+        "singleLineText",
+        "email"
+      ],
+      "upload": true,
+      "computed": false
+    },
+    {
+      "name": "Tech Capabilities",
+      "canonical": "techCapabilities",
+      "createType": "multilineText",
+      "acceptedTypes": [
+        "multilineText",
+        "singleLineText",
+        "multipleSelects"
+      ],
+      "upload": true,
+      "computed": false
+    },
+    {
+      "name": "Updated At",
+      "canonical": "updatedAt",
+      "createType": null,
+      "acceptedTypes": [
+        "lastModifiedTime"
+      ],
+      "upload": false,
+      "computed": true
+    },
+    {
+      "name": "AI Context",
+      "canonical": "aiContext",
+      "createType": "multilineText",
+      "acceptedTypes": [
+        "multilineText",
+        "singleLineText"
+      ],
+      "upload": true,
+      "computed": false
+    }
+  ],
+  "booleans": {
+    "true": [
+      "1",
+      "true",
+      "yes",
+      "y",
+      "checked"
+    ],
+    "false": [
+      "",
+      "0",
+      "false",
+      "no",
+      "n",
+      "unchecked"
+    ]
+  }
+}

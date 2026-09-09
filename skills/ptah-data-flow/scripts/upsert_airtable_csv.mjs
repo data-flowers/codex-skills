@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { CONTRACT, CONTRACT_DATA, API_ROOT, isMain, arg, hasFlag, fail, parsePositiveInt, parseAirtableUrl, fetchJson, fetchBaseSchema } from "./airtable_common.mjs";
 
 // Usage:
 //   AIRTABLE_TOKEN=pat... node upsert_airtable_csv.mjs \
@@ -12,84 +13,12 @@
 // - Uses Airtable field names from the CSV header.
 
 import fs from "node:fs/promises";
-import path from "node:path";
 
-const API_ROOT = "https://api.airtable.com/v0";
 const DEFAULT_BATCH_SIZE = 100;
 const API_RECORDS_PER_REQUEST = 10;
 const DEFAULT_THROTTLE_MS = 250;
 
-function arg(name, fallback = null) {
-  const index = process.argv.indexOf(`--${name}`);
-  return index >= 0 ? process.argv[index + 1] : fallback;
-}
-
-function hasFlag(name) {
-  return process.argv.includes(`--${name}`);
-}
-
-function fail(message) {
-  console.error(message);
-  process.exit(1);
-}
-
-function parsePositiveInt(value, label) {
-  const parsed = Number.parseInt(String(value), 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    fail(`${label} must be a positive integer. Received: ${value}`);
-  }
-  return parsed;
-}
-
-function parseAirtableUrl(rawUrl) {
-  const url = new URL(rawUrl);
-  const match = url.pathname.match(
-    /^\/(?<base>app[a-zA-Z0-9]+)\/(?<table>tbl[a-zA-Z0-9]+)(?:\/(?<view>viw[a-zA-Z0-9]+))?\/?$/
-  );
-
-  if (!match?.groups?.base || !match?.groups?.table) {
-    throw new Error(`Could not parse Airtable base/table IDs from URL: ${rawUrl}`);
-  }
-
-  return {
-    baseId: match.groups.base,
-    tableId: match.groups.table,
-  };
-}
-
-async function fetchJson(url, token, { method = "GET", body = null } = {}) {
-  const res = await fetch(url, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-
-  const text = await res.text();
-  let data = null;
-
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-
-  if (!res.ok) {
-    const detail = typeof data === "string" ? data : JSON.stringify(data, null, 2);
-    throw new Error(`${res.status} ${res.statusText}\n${detail}`);
-  }
-
-  return data;
-}
-
-async function fetchBaseSchema(baseId, token) {
-  const url = `${API_ROOT}/meta/bases/${baseId}/tables`;
-  return fetchJson(url, token);
-}
-
-function parseCsv(text) {
+export function parseCsv(text) {
   const rows = [];
   let row = [];
   let value = "";
@@ -151,7 +80,7 @@ function parseCsv(text) {
   return rows;
 }
 
-async function loadCsvRows(csvPath) {
+export async function loadCsvRows(csvPath) {
   const text = await fs.readFile(csvPath, "utf8");
   const rows = parseCsv(text);
 
@@ -173,6 +102,8 @@ async function loadCsvRows(csvPath) {
 
   const records = [];
   for (const rawRow of rows.slice(1)) {
+    if (rawRow.every(value => !value.trim())) continue;
+    if (rawRow.length !== headers.length) fail("CSV row width does not match its header");
     const row = {};
     for (let i = 0; i < headers.length; i += 1) {
       row[headers[i]] = rawRow[i] ?? "";
@@ -199,200 +130,150 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function prepareFieldPayload(row, headers, fieldMap) {
-  const fields = {};
-
+export function validateInput(headers, rows, keys, clearFields = []) {
+  if (!keys.length || new Set(keys).size !== keys.length) fail("Merge keys must be nonempty and unique");
+  const forbidden = CONTRACT.filter(field => !field.upload).map(field => field.name);
   for (const header of headers) {
-    if (header === "Updated At") {
-      continue;
-    }
-
-    const value = String(row[header] ?? "");
-    const trimmed = value.trim();
-    const field = fieldMap.get(header);
-
-    if (!field) {
-      fail(`Missing field metadata for CSV header: ${header}`);
-    }
-
-    if (trimmed === "") {
-      if (field.type === "multipleAttachments" || field.type === "multipleSelects") {
-        fields[header] = [];
-        continue;
-      }
-      fields[header] = null;
-      continue;
-    }
-
-    if (field.type === "number") {
-      const numericValue = Number(trimmed);
-      if (!Number.isFinite(numericValue)) {
-        fail(`Invalid numeric value for field "${header}" in row Name="${row.Name || ""}": ${value}`);
-      }
-      fields[header] = numericValue;
-      continue;
-    }
-
-    if (field.type === "checkbox") {
-      const normalized = trimmed.toLowerCase();
-      if (!["true", "false", "1", "0", "yes", "no"].includes(normalized)) {
-        fail(`Invalid checkbox value for field "${header}" in row Name="${row.Name || ""}": ${value}`);
-      }
-      fields[header] = ["true", "1", "yes"].includes(normalized);
-      continue;
-    }
-
-    if (field.type === "multipleAttachments") {
-      fields[header] = [{ url: trimmed }];
-      continue;
-    }
-
-    if (field.type === "multipleSelects") {
-      fields[header] = trimmed
-        .split(/[;,]/)
-        .map((name) => name.trim())
-        .filter(Boolean)
-        .map((name) => ({ name }));
-      continue;
-    }
-
-    fields[header] = value;
+    if (forbidden.includes(header)) fail(`Omit protected field ${header}; attachments use their dedicated helper`);
   }
+  for (const key of keys) {
+    if (!headers.includes(key)) fail(`CSV is missing merge key ${key}`);
+    if (clearFields.includes(key)) fail(`Merge key ${key} cannot be cleared`);
+  }
+  for (const field of clearFields) {
+    if (!headers.includes(field)) fail(`Clear field ${field} is absent from the CSV`);
+  }
+  const seen = new Set();
+  for (const row of rows) {
+    const values = keys.map(key => row[key]);
+    if (values.some(value => typeof value !== "string" || !value.trim())) fail("Merge keys must be nonblank text");
+    const signature = JSON.stringify(values);
+    if (seen.has(signature)) fail("Duplicate merge key in input");
+    seen.add(signature);
+  }
+  if (!rows.length) fail("CSV has no data rows");
+}
 
+export function prepareFieldPayload(row, headers, fieldMap, clearFields = []) {
+  const fields = {};
+  for (const header of headers) {
+    const contract = CONTRACT.find(field => field.name === header);
+    const field = fieldMap.get(header);
+    if (!field) fail(`Missing field metadata for ${header}`);
+    if (contract?.upload === false || field.type === "multipleAttachments") fail(`Omit protected field ${header}`);
+    if (contract && !contract.acceptedTypes.includes(field.type)) fail(`Unexpected ${header} type: ${field.type}`);
+    const value = row[header] ?? "";
+    if (typeof value !== "string") fail(`CSV value for ${header} must be text`);
+    const trimmed = value.trim();
+    if (header === "Id" && !trimmed) fail("Id must be nonblank text");
+    if (!trimmed) {
+      if (clearFields.includes(header)) fields[header] = field.type === "multipleSelects" ? [] : field.type === "checkbox" ? false : null;
+      continue;
+    }
+    if (field.type === "number") {
+      if (!Number.isFinite(Number(trimmed))) fail(`Invalid number for ${header}`);
+      fields[header] = Number(trimmed);
+    } else if (field.type === "checkbox") {
+      const normalized = trimmed.toLowerCase();
+      if (![...CONTRACT_DATA.booleans.true, ...CONTRACT_DATA.booleans.false].includes(normalized)) fail(`Invalid checkbox for ${header}`);
+      fields[header] = CONTRACT_DATA.booleans.true.includes(normalized);
+    } else if (field.type === "multipleSelects") {
+      fields[header] = trimmed.split(/[;,]/).map(name => name.trim()).filter(Boolean);
+    } else if (["singleLineText", "multilineText", "richText", "singleSelect", "url", "email", "phoneNumber"].includes(field.type)) {
+      fields[header] = value;
+    } else {
+      fail(`Unsupported writable field type ${field.type} for ${header}`);
+    }
+    if (["singleSelect", "multipleSelects"].includes(field.type) && field.options?.choices) {
+      const valid = new Set(field.options.choices.map(choice => choice.name));
+      const selected = Array.isArray(fields[header]) ? fields[header] : [fields[header]];
+      if (selected.some(choice => !valid.has(choice))) fail(`Unknown select choice for ${header}`);
+    }
+  }
   return fields;
 }
 
-function validateSchema(table, headers, mergeFields) {
-  const tableFieldNames = new Set((table.fields || []).map((field) => field.name));
-
+export function validateSchema(table, headers, mergeFields) {
+  const fields = new Map((table.fields || []).map(field => [field.name, field]));
   for (const header of headers) {
-    if (!tableFieldNames.has(header)) {
-      fail(`CSV field not found in Airtable schema: ${header}`);
-    }
+    if (!fields.has(header)) fail(`CSV field not found in Airtable schema: ${header}`);
+    const contract = CONTRACT.find(field => field.name === header);
+    if (contract && !contract.acceptedTypes.includes(fields.get(header).type)) fail(`Unexpected ${header} type: ${fields.get(header).type}`);
   }
-
-  for (const mergeField of mergeFields) {
-    if (!tableFieldNames.has(mergeField)) {
-      fail(`Merge field not found in Airtable schema: ${mergeField}`);
-    }
+  for (const key of mergeFields) {
+    if (!headers.includes(key)) fail(`CSV is missing merge key ${key}`);
+    if (!fields.has(key)) fail(`Merge field not found in Airtable schema: ${key}`);
+    if (fields.get(key).type !== "singleLineText") fail(`Merge key ${key} must be singleLineText`);
   }
-
-  return new Map((table.fields || []).map((field) => [field.name, field]));
+  return fields;
 }
 
-async function main() {
+export async function main() {
   const token = process.env.AIRTABLE_TOKEN;
-  if (!token) {
-    fail("Missing AIRTABLE_TOKEN in environment.");
-  }
-
   let baseId = arg("base");
   let tableId = arg("table");
   const rawUrl = arg("url");
-  const csvArg = arg("csv");
-  if (!csvArg) {
-    fail("Required: --csv /abs/path/to/file.csv");
-  }
-  const csvPath = path.resolve(csvArg);
-  const mergeFields = String(arg("merge-fields", "Id"))
-    .split(",")
-    .map((field) => field.trim())
-    .filter(Boolean);
-  const batchSize = parsePositiveInt(arg("batch-size", String(DEFAULT_BATCH_SIZE)), "batch-size");
-  const throttleMs = parsePositiveInt(arg("throttle-ms", String(DEFAULT_THROTTLE_MS)), "throttle-ms");
-  const limitArg = arg("limit");
-  const limit = limitArg ? parsePositiveInt(limitArg, "limit") : null;
-  const execute = hasFlag("execute");
-
   if (rawUrl) {
     const parsed = parseAirtableUrl(rawUrl);
-    baseId ||= parsed.baseId;
-    tableId ||= parsed.tableId;
+    if ((baseId && baseId !== parsed.baseId) || (tableId && tableId !== parsed.tableId)) fail("Conflicting Airtable targets");
+    baseId = parsed.baseId;
+    tableId = parsed.tableId;
   }
-
-  if (!baseId || !tableId) {
-    fail("Required: --url airtable_url or --base app... --table tbl...");
+  if (!baseId || !tableId) fail("Required: --url or --base and --table");
+  const csvPath = arg("csv");
+  if (!csvPath) fail("Required: --csv");
+  const recordIdColumn = arg("record-id-column");
+  const keys = recordIdColumn ? [recordIdColumn] : String(arg("merge-fields", "Id")).split(",").map(s => s.trim()).filter(Boolean);
+  const clearFields = String(arg("clear-fields", "")).split(",").map(s => s.trim()).filter(Boolean);
+  const {headers: inputHeaders, records: rows} = await loadCsvRows(csvPath);
+  validateInput(inputHeaders, rows, keys, clearFields);
+  if (recordIdColumn && rows.some(row => !/^rec[a-zA-Z0-9]+$/.test(row[recordIdColumn]))) fail("Invalid Airtable record id");
+  const headers = inputHeaders.filter(header => header !== recordIdColumn);
+  if (!headers.some(header => !keys.includes(header))) fail("No changed fields in the CSV");
+  const batchSize = parsePositiveInt(arg("batch-size", String(DEFAULT_BATCH_SIZE)), "batch-size");
+  const throttleMs = parsePositiveInt(arg("throttle-ms", String(DEFAULT_THROTTLE_MS)), "throttle-ms");
+  const limit = arg("limit") ? parsePositiveInt(arg("limit"), "limit") : rows.length;
+  const execute = hasFlag("execute");
+  const boundaryPath = arg("boundary");
+  let table;
+  if (boundaryPath) {
+    const boundary = JSON.parse(await fs.readFile(boundaryPath, "utf8"));
+    if (boundary.version !== 1 || boundary.baseId !== baseId || boundary.table?.id !== tableId) fail("Saved boundary does not match the requested target");
+    table = boundary.table;
+  } else {
+    if (!token) fail("Missing AIRTABLE_TOKEN for schema inspection");
+    const schema = await fetchBaseSchema(baseId, token);
+    table = schema.tables?.find(item => item.id === tableId || item.name === tableId);
   }
-
-  let schemaData;
-  try {
-    schemaData = await fetchBaseSchema(baseId, token);
-  } catch (error) {
-    fail(
-      [
-        "Failed to fetch base schema from Airtable Metadata API.",
-        "Check AIRTABLE_TOKEN permissions and confirm it includes `schema.bases:read` for this base.",
-        "",
-        String(error.message || error),
-      ].join("\n")
-    );
-  }
-
-  const table = schemaData.tables?.find(
-    (item) => item.id === tableId || item.name === tableId
-  );
-  if (!table) {
-    fail(`Table not found in base schema: ${tableId}`);
-  }
-
-  const { headers, records: csvRows } = await loadCsvRows(csvPath);
-  const fieldMap = validateSchema(table, headers, mergeFields);
-
-  const limitedRows = limit ? csvRows.slice(0, limit) : csvRows;
-  const payloadRows = limitedRows.map((row) => prepareFieldPayload(row, headers, fieldMap));
-  const workBatches = chunk(payloadRows, batchSize);
-  const apiBatches = workBatches.flatMap((workBatch) => chunk(workBatch, API_RECORDS_PER_REQUEST));
-
-  console.log(`Base: ${baseId}`);
-  console.log(`Table: ${table.name} (${table.id})`);
-  console.log(`CSV: ${csvPath}`);
-  console.log(`Rows: ${payloadRows.length}`);
-  console.log(`Merge fields: ${mergeFields.join(", ")}`);
-  console.log(`Work batch size: ${batchSize}`);
-  console.log(`API request size: ${API_RECORDS_PER_REQUEST}`);
-  console.log(`Estimated work batches: ${workBatches.length}`);
-  console.log(`Estimated API requests: ${apiBatches.length}`);
-  console.log(`Throttle: ${throttleMs}ms`);
-  console.log(`Mode: ${execute ? "execute" : "dry-run"}`);
-
+  if (!table) fail("Table not found in base schema");
+  const fieldMap = validateSchema(table, headers, recordIdColumn ? [] : keys);
+  const payloadRows = rows.slice(0, limit).map(row => ({
+    ...(recordIdColumn ? {id: row[recordIdColumn]} : {}),
+    fields: prepareFieldPayload(row, headers, fieldMap, clearFields),
+  })).filter(row => Object.keys(row.fields).some(field => recordIdColumn || !keys.includes(field)));
+  const apiBatches = chunk(payloadRows, batchSize).flatMap(work => chunk(work, API_RECORDS_PER_REQUEST));
   if (!execute) {
-    console.log("");
-    console.log("Dry-run only. Add --execute to send PATCH requests with performUpsert.");
+    console.log(JSON.stringify({mode: "dry-run", rows: payloadRows.length, requests: apiBatches.length, operation: recordIdColumn ? "update" : "upsert"}));
     return;
   }
-
-  const endpoint = `${API_ROOT}/${baseId}/${encodeURIComponent(table.id)}`;
-  let created = 0;
-  let updated = 0;
-
-  for (let index = 0; index < apiBatches.length; index += 1) {
-    const batch = apiBatches[index];
-    const response = await fetchJson(endpoint, token, {
-      method: "PATCH",
-      body: {
-        performUpsert: {
-          fieldsToMergeOn: mergeFields,
-        },
-        records: batch.map((fields) => ({ fields })),
+  if (!token) fail("Missing AIRTABLE_TOKEN in environment");
+  let created = 0, updated = 0;
+  for (const [index, records] of apiBatches.entries()) {
+    const response = await fetchJson(`${API_ROOT}/${baseId}/${encodeURIComponent(table.id)}`, token, {
+      method: "PATCH", body: {
+        ...(!recordIdColumn ? {performUpsert: {fieldsToMergeOn: keys}} : {}), records,
       },
     });
-
-    created += Array.isArray(response.createdRecords) ? response.createdRecords.length : 0;
-    updated += Array.isArray(response.updatedRecords) ? response.updatedRecords.length : 0;
-
-    console.log(
-      `API request ${index + 1}/${apiBatches.length}: created=${Array.isArray(response.createdRecords) ? response.createdRecords.length : 0} updated=${Array.isArray(response.updatedRecords) ? response.updatedRecords.length : 0}`
-    );
-
-    if (index < apiBatches.length - 1) {
-      await sleep(throttleMs);
-    }
+    if (!Array.isArray(response.records) || response.records.length !== records.length) fail("Surprising Airtable response; stop and inspect the affected rows");
+    created += response.createdRecords?.length || 0;
+    updated += recordIdColumn ? response.records.length : response.updatedRecords?.length || 0;
+    if ((index + 1) % 5 === 0 || index + 1 === apiBatches.length) console.error(`Uploaded ${Math.min((index + 1) * 10, payloadRows.length)}/${payloadRows.length} rows`);
+    if (index + 1 < apiBatches.length) await sleep(throttleMs);
   }
-
-  console.log("");
-  console.log(`Done. created=${created} updated=${updated} total=${created + updated}`);
+  console.log(JSON.stringify({mode: "execute", created, updated, requests: apiBatches.length, rows: payloadRows.length}));
 }
 
-main().catch((error) => {
-  fail(String(error.message || error));
+if (isMain(import.meta.url)) main().catch(error => {
+  console.error(String(error.message || error));
+  process.exitCode = 1;
 });
