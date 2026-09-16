@@ -54,6 +54,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("input", type=Path)
     parser.add_argument("--kind", choices=("auto", "canonical", "ptah", "upload", "delta"), default="auto")
     parser.add_argument("--state", type=Path)
+    parser.add_argument(
+        "--source-manifest",
+        type=Path,
+        help="Optional source-system manifest with population, crawl, and identity expectations.",
+    )
     parser.add_argument("--taxonomy", type=Path, help="JSON with version: 1 and categories: {category: [subcategory]}")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--min-grounding-coverage", type=float, default=0.80)
@@ -193,10 +198,106 @@ def load_taxonomy(path):
     return {(category, sub) for category, subs in categories.items() for sub in subs}
 
 
+def load_source_manifest(path: Path | None, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Validate a countable source population and its identity expectations."""
+    if path is None:
+        return {
+            "provided": False,
+            "ready": True,
+            "errors": [],
+            "population": {},
+            "crawl": {},
+            "identity": {},
+        }
+
+    data = json.loads(path.read_text())
+    if not isinstance(data, dict) or data.get("version") != 1:
+        raise ValueError("Source manifest requires version 1")
+    population = data.get("population")
+    crawl = data.get("crawl")
+    identity = data.get("identity", {})
+    if not isinstance(population, dict) or not isinstance(crawl, dict) or not isinstance(identity, dict):
+        raise ValueError("Source manifest requires population, crawl, and optional identity objects")
+
+    errors: list[dict[str, Any]] = []
+
+    def count(section: dict[str, Any], key: str) -> int | None:
+        item = section.get(key)
+        if isinstance(item, bool) or not isinstance(item, int) or item < 0:
+            errors.append({"field": key, "reason": "expected-nonnegative-integer", "value": item})
+            return None
+        return item
+
+    discovered = count(population, "discovered")
+    in_scope = count(population, "inScope")
+    excluded = count(population, "excluded")
+    attempted = count(crawl, "attempted")
+    recovered = count(crawl, "recovered")
+    failed_ids = crawl.get("failedSourceIds", [])
+    target = crawl.get("target")
+
+    if not isinstance(data.get("scopeRule"), str) or not data.get("scopeRule", "").strip():
+        errors.append({"field": "scopeRule", "reason": "expected-nonblank-text"})
+    if discovered is not None and in_scope is not None and excluded is not None and discovered != in_scope + excluded:
+        errors.append({"field": "population", "reason": "discovered-must-equal-inScope-plus-excluded"})
+    if target not in ("discovered", "inScope"):
+        errors.append({"field": "crawl.target", "reason": "expected-discovered-or-inScope", "value": target})
+        target_count = None
+    else:
+        target_count = discovered if target == "discovered" else in_scope
+    if target_count is not None and attempted is not None and attempted != target_count:
+        errors.append({"field": "crawl.attempted", "reason": "must-equal-target-population", "expected": target_count, "actual": attempted})
+    if not isinstance(failed_ids, list) or not all(isinstance(item, str) and item.strip() for item in failed_ids):
+        errors.append({"field": "crawl.failedSourceIds", "reason": "expected-nonblank-text-array"})
+        failed_ids = []
+    elif len(failed_ids) != len(set(failed_ids)):
+        errors.append({"field": "crawl.failedSourceIds", "reason": "duplicate-source-ids"})
+    if attempted is not None and recovered is not None and recovered + len(failed_ids) != attempted:
+        errors.append({"field": "crawl", "reason": "recovered-plus-failures-must-equal-attempted"})
+    if in_scope is not None and len(rows) != in_scope:
+        errors.append({"field": "population.inScope", "reason": "must-equal-canonical-row-count", "expected": in_scope, "actual": len(rows)})
+
+    stable_ids = identity.get("stableSourceIdsAvailable", False)
+    profile_urls = identity.get("profileUrlsAvailable", False)
+    for key, item in (("stableSourceIdsAvailable", stable_ids), ("profileUrlsAvailable", profile_urls)):
+        if not isinstance(item, bool):
+            errors.append({"field": f"identity.{key}", "reason": "expected-boolean", "value": item})
+
+    source_ids = [text(row, "sourceId", "Source ID", "sourceExhibitorId", "SourceId") for row in rows]
+    source_urls = [text(row, "sourceProfileUrl", "Source Profile URL", "profileUrl", "Profile URL") for row in rows]
+    duplicate_source_ids = sorted(item for item, total in Counter(source_ids).items() if item and total > 1)
+    if stable_ids is True:
+        missing = [index + 2 for index, item in enumerate(source_ids) if not item]
+        if missing:
+            errors.append({"field": "sourceId", "reason": "missing-values", "rows": missing})
+        if duplicate_source_ids:
+            errors.append({"field": "sourceId", "reason": "duplicate-values", "values": duplicate_source_ids})
+    if profile_urls is True:
+        missing = [index + 2 for index, item in enumerate(source_urls) if not item]
+        if missing:
+            errors.append({"field": "sourceProfileUrl", "reason": "missing-values", "rows": missing})
+
+    return {
+        "provided": True,
+        "path": str(path.resolve()),
+        "ready": not errors,
+        "errors": errors,
+        "population": population,
+        "crawl": {**crawl, "failedSourceIds": failed_ids},
+        "identity": {
+            **identity,
+            "sourceIdCoverage": round(sum(bool(item) for item in source_ids) / len(rows), 4) if rows else 0.0,
+            "profileUrlCoverage": round(sum(bool(item) for item in source_urls) / len(rows), 4) if rows else 0.0,
+            "duplicateSourceIds": duplicate_source_ids,
+        },
+    }
+
+
 def main() -> int:
     args = parse_args()
     rows, fields = load_rows(args.input)
     kind = infer_kind(args.kind, fields)
+    source_manifest = load_source_manifest(args.source_manifest, rows)
     if kind == "delta" and args.require_gate != "none":
         raise ValueError("Delta validation does not establish whole-dataset readiness")
     shape = contract_shape(rows, fields, kind)
@@ -217,6 +318,8 @@ def main() -> int:
     contexts = [text(row, "aiContext", "AI Context") for row in rows]
     websites = [text(row, "websiteUrl", "Website") for row in rows]
     founding_years = [text(row, "yearFounded", "Year Founded") for row in rows]
+    evidence_bases = [text(row, "evidenceBasis", "Evidence Basis", "taxonomyBasis", "Taxonomy Basis") for row in rows]
+    taxonomy_confidences = [text(row, "taxonomyConfidence", "Taxonomy Confidence") for row in rows]
 
     current_year = datetime.now(timezone.utc).year
     invalid_founding_year_rows = []
@@ -320,11 +423,36 @@ def main() -> int:
             taxonomy_pairs.update((category, sub) for sub in subs if category)
 
     eligible_rows = sum(publication_flags)
+    limited_evidence_markers = ("unverified", "name only", "identity only", "fallback", "unresolved")
+
+    def basis_is_grounded(index: int) -> bool:
+        basis = normalized_words(evidence_bases[index])
+        return bool(basis) and not any(marker in basis for marker in limited_evidence_markers)
+
+    def has_grounding(index: int, description: str) -> bool:
+        if description and index not in generic_description_indexes:
+            return True
+        return basis_is_grounded(index)
+
     grounded_eligible_rows = sum(
-        bool(description) and index not in generic_description_indexes
+        has_grounding(index, description)
         for index, (description, eligible) in enumerate(zip(descriptions, publication_flags))
         if eligible
     )
+    unsupported_high_confidence_rows = [
+        {
+            "row": index + 2,
+            "id": ids[index],
+            "name": names[index],
+            "evidenceBasis": evidence_bases[index],
+            "taxonomyConfidence": taxonomy_confidences[index],
+        }
+        for index in range(len(rows))
+        if publication_flags[index]
+        and taxonomy_confidences[index].casefold() == "high"
+        and evidence_bases[index]
+        and not basis_is_grounded(index)
+    ]
     published_generic_description_rows = [
         record for record in generic_description_rows if publication_flags[record["row"] - 2]
     ]
@@ -343,18 +471,28 @@ def main() -> int:
         "eligibleRows": eligible_rows,
         "placeholderCandidates": len(placeholder_rows),
         "currentYearFoundingValues": len(current_year_founding_rows),
+        "sourceIds": sum(bool(text(row, "sourceId", "Source ID", "sourceExhibitorId", "SourceId")) for row in rows),
+        "sourceProfileUrls": sum(bool(text(row, "sourceProfileUrl", "Source Profile URL", "profileUrl", "Profile URL")) for row in rows),
     }
     grounding_coverage = grounded_eligible_rows / eligible_rows if eligible_rows else 0.0
+    description_coverage = sum(
+        bool(description) and publication_flags[index]
+        for index, description in enumerate(descriptions)
+    ) / eligible_rows if eligible_rows else 0.0
     taxonomy_coverage = taxonomy_rows / eligible_rows if eligible_rows else 0.0
     input_hash = sha256(args.input)
     drift = state_drift(args.state, counts, input_hash, kind=kind, input_path=args.input)
 
     forbidden_upload_fields = [field["name"] for field in CONTRACT["fields"] if kind in ("upload", "delta") and not field["upload"] and field["name"] in fields]
     structural_errors = bool(
-        not rows or shape["noChangedFields"] or shape["missingFields"] or shape["missingFieldRows"] or duplicate_ids or missing_ids or missing_names or non_text_ids or invalid_founding_year_rows or invalid_pairs
+        not rows or shape["noChangedFields"] or shape["missingFields"] or shape["missingFieldRows"] or duplicate_ids or missing_ids or missing_names or non_text_ids or invalid_founding_year_rows or invalid_pairs or not source_manifest["ready"]
     )
     upload_errors = bool(forbidden_upload_fields or invalid_published_rows or published_placeholder_rows)
-    taxonomy_ready = not structural_errors and grounding_coverage >= args.min_grounding_coverage
+    taxonomy_ready = (
+        not structural_errors
+        and not unsupported_high_confidence_rows
+        and grounding_coverage >= args.min_grounding_coverage
+    )
     publication_review_required = bool(
         (placeholder_rows and not has_published_field) or unreviewed_current_year_founding_rows
     )
@@ -370,6 +508,7 @@ def main() -> int:
     )
 
     evidence_tiers = Counter(text(row, "evidenceTier", "Evidence Tier") or "unverified" for row in rows)
+    evidence_basis_counts = Counter(item or "unreported" for item in evidence_bases)
     report = {
         "version": 2,
         "input": str(args.input.resolve()),
@@ -377,12 +516,14 @@ def main() -> int:
         "counts": counts,
         "coverage": {
             "grounding": round(grounding_coverage, 4),
-            "descriptionCoverage": round(grounding_coverage, 4),
+            "descriptionCoverage": round(description_coverage, 4),
             "minimumGrounding": args.min_grounding_coverage,
             "taxonomy": round(taxonomy_coverage, 4),
         },
+        "sourceSystem": source_manifest,
         "evidenceReview": {"status": "unverified" if "unverified" in evidence_tiers else "declared",
-                           "tiers": dict(evidence_tiers), "note": "Description coverage and declared tiers do not verify source evidence."},
+                           "tiers": dict(evidence_tiers), "basis": dict(evidence_basis_counts),
+                           "note": "Coverage and declared evidence labels support readiness checks; source claims still require appropriate provenance review."},
         "checks": {
             "contractShape": shape,
             "taxonomyDefinitionProvided": allowed_pairs is not None,
@@ -403,11 +544,13 @@ def main() -> int:
             "repeatedDescriptions": repeated_descriptions,
             "orphanAIContextRows": orphan_context_rows,
             "pendingAIContextRows": pending_context_rows,
+            "unsupportedHighConfidenceRows": unsupported_high_confidence_rows,
             "forbiddenUploadFields": forbidden_upload_fields,
             "stateFreshness": drift,
         },
         "gates": {
             "structurallyValid": not structural_errors,
+            "sourceReady": source_manifest["ready"],
             "taxonomyReady": taxonomy_ready,
             "publicationReviewRequired": publication_review_required,
             "temporalReviewRequired": bool(unreviewed_current_year_founding_rows),
@@ -438,6 +581,8 @@ def main() -> int:
                 "invalidFoundingYears": len(invalid_founding_year_rows),
                 "futureFoundingYears": len(future_founding_year_rows),
                 "unreviewedCurrentYearFoundingYears": len(unreviewed_current_year_founding_rows),
+                "sourceManifestErrors": len(source_manifest["errors"]),
+                "unsupportedHighConfidence": len(unsupported_high_confidence_rows),
                 "stateDifferences": len(drift["differences"]),
             },
             "report": str(args.output.resolve()),

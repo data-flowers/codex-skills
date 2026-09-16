@@ -5,6 +5,10 @@ the linked reference; do not treat historical examples as additional stages.
 
 | Observed problem | Maintained guidance |
 |---|---|
+| Interactive profile traversal obscured stable ids and mixed directory totals with the in-scope population | [Source-system discovery, identity, and coverage](source-system-and-coverage.md) |
+| Taxonomy and publication began before recoverable profile evidence was assembled | [Grounding stage and exit criteria](stages.md) |
+| Storage success was reported while a filtered view remained empty | [Publication-state milestones](airtable-boundary.md) |
+| Transfer encodings accumulated as opaque project artifacts | [Legible artifact layout](artifacts.md) |
 | Duplicate rows obscured source counts; homogeneous directories produced redundant categories | [Taxonomy diagnostics and source preservation](taxonomy.md) |
 | Name-only assignments became misleading after enrichment; a registration type overrode explicit function | [Grounding and evidence precedence](taxonomy.md) |
 | Compressed summaries lost facts needed to distinguish neighboring classes | [Taxonomy conflict patterns](taxonomy.md) |

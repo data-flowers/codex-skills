@@ -105,6 +105,18 @@ clean map table.
 
 ## View semantics and control fields
 
+Use precise publication states throughout planning and acceptance:
+
+- `stored`: the expected rows and values exist in Airtable
+- `publish-enabled`: the complete publication-control tuple admits the rows
+- `view-visible`: the rows appear in the intended filtered Airtable view
+- `Ptah-visible`: the downstream provider returns and renders the rows
+
+Treat these as cumulative milestones. When the user supplies a target view or
+asks for a deployed result, include the corresponding view or Ptah-visible
+milestone in acceptance. When the requested boundary is storage only, report it
+as stored and preserve the later publication milestones as explicit next state.
+
 The 12-field contract does not describe every condition that makes a row visible in a published view. Inspect the target view and all control or grouping fields before building the upload artifact.
 
 Common examples include:

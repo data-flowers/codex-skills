@@ -66,6 +66,20 @@ class OfflineTest(unittest.TestCase):
         path.write_text(json.dumps({'version': 1, 'categories': {'Companies': ['Sensors']}}))
         return path
 
+    def source_manifest(self, **changes):
+        payload = {
+            'version': 1,
+            'dataset': 'test-directory',
+            'scopeRule': 'Rows linked from the selected collection',
+            'population': {'discovered': 1, 'inScope': 1, 'excluded': 0},
+            'crawl': {'target': 'discovered', 'attempted': 1, 'recovered': 1, 'failedSourceIds': []},
+            'identity': {'stableSourceIdsAvailable': True, 'profileUrlsAvailable': True},
+        }
+        payload.update(changes)
+        path = self.root/'source-manifest.json'
+        path.write_text(json.dumps(payload))
+        return path
+
 
 class RewriteTests(OfflineTest):
     def test_uncached_description_completes_and_preserves_id(self):
@@ -307,6 +321,59 @@ class DatasetTests(OfflineTest):
         code, report = self.gate([self.full_row()], ['--state',state,'--taxonomy',self.taxonomy(),'--require-gate','publication'])
         self.assertEqual(code, 0)
         self.assertTrue(report['checks']['stateFreshness']['stale'])
+
+    def test_source_manifest_reconciles_scope_crawl_and_identity(self):
+        row = self.full_row()
+        row.update(sourceId='source-001', sourceProfileUrl='https://example.test/profile/001')
+        code, report = self.gate(
+            [row],
+            ['--source-manifest', self.source_manifest(), '--taxonomy', self.taxonomy(), '--require-gate', 'publication'],
+        )
+        self.assertEqual(code, 0)
+        self.assertTrue(report['gates']['sourceReady'])
+        self.assertEqual(report['sourceSystem']['identity']['sourceIdCoverage'], 1.0)
+
+    def test_source_manifest_population_mismatch_fails(self):
+        row = self.full_row()
+        row.update(sourceId='source-001', sourceProfileUrl='https://example.test/profile/001')
+        manifest = self.source_manifest(population={'discovered': 2, 'inScope': 1, 'excluded': 0})
+        code, report = self.gate([row], ['--source-manifest', manifest])
+        self.assertEqual(code, 2)
+        self.assertFalse(report['gates']['sourceReady'])
+        self.assertTrue(report['sourceSystem']['errors'])
+
+    def test_source_manifest_requires_unique_source_identity(self):
+        rows = []
+        for key in ('001', '002'):
+            row = self.full_row()
+            row.update(id=key, sourceId='duplicate', sourceProfileUrl=f'https://example.test/profile/{key}')
+            rows.append(row)
+        manifest = self.source_manifest(
+            population={'discovered': 2, 'inScope': 2, 'excluded': 0},
+            crawl={'target': 'discovered', 'attempted': 2, 'recovered': 2, 'failedSourceIds': []},
+        )
+        code, report = self.gate(rows, ['--source-manifest', manifest])
+        self.assertEqual(code, 2)
+        self.assertEqual(report['sourceSystem']['identity']['duplicateSourceIds'], ['duplicate'])
+
+    def test_name_only_evidence_cannot_support_high_confidence(self):
+        row = self.full_row()
+        row.update(description='', evidenceBasis='name-only', taxonomyConfidence='High')
+        code, report = self.gate(
+            [row],
+            ['--taxonomy', self.taxonomy(), '--require-gate', 'taxonomy', '--min-grounding-coverage', '0'],
+        )
+        self.assertEqual(code, 3)
+        self.assertFalse(report['gates']['taxonomyReady'])
+        self.assertEqual(len(report['checks']['unsupportedHighConfidenceRows']), 1)
+
+    def test_grounding_and_description_coverage_are_distinct(self):
+        row = self.full_row()
+        row.update(description='', evidenceBasis='tags-only', taxonomyConfidence='Medium')
+        code, report = self.gate([row], ['--min-grounding-coverage', '1'])
+        self.assertEqual(code, 0)
+        self.assertEqual(report['coverage']['grounding'], 1.0)
+        self.assertEqual(report['coverage']['descriptionCoverage'], 0.0)
 
 
 class AttachmentTests(OfflineTest):

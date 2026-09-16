@@ -6,9 +6,31 @@ description: Curate, validate, publish, and maintain Ptah datasets from rough so
 
 Use this skill to onboard, repair, extend, publish, or maintain Ptah data.
 
+## Operating principles
+
+- Understand the source as a system: identify collection surfaces, entity
+  surfaces, stable identifiers, relationships, and the intended destination.
+- Establish identity and scope before enrichment. Anchor each entity with stable
+  source identity when available and express completeness against one counted
+  in-scope population.
+- Build the evidence layer before interpretation. Recover profiles, source tags,
+  first-party website evidence, and provenance before final taxonomy design.
+- Preserve layers of truth. Keep raw source values, normalized values, evidence,
+  generated presentation text, initial classification, and final taxonomy
+  distinct and traceable.
+- Maintain one canonical local dataset and derive every publication artifact and
+  remote delta from it.
+- Publish coherent releases. Complete the intended source, evidence, taxonomy,
+  and validation passes before the first full remote publication.
+- Match verification to risk: comprehensive acceptance at major boundaries and
+  focused validation for routine maintenance.
+
 ## Invariants
 
 - Work locally first. Keep one canonical dataset and derive publish artifacts from it.
+- For directories and other multi-surface sources, preserve a source manifest
+  that reconciles discovered, in-scope, excluded, attempted, recovered, and
+  failed populations.
 - The downstream contract is the current 12 Ptah fields: `Id`, `Category`, `Subcategory`, `Name`, `Website`, `Logo`, `Description`, `Year Founded`, `Email`, `Tech Capabilities`, `Updated At`, and `AI Context`.
 - Treat `Id` as an opaque text identifier even when every current value looks numeric.
 - Treat Airtable as storage and publish plumbing, not the primary editing model.
@@ -28,13 +50,17 @@ Use this skill to onboard, repair, extend, publish, or maintain Ptah data.
 
 1. Read `./ptah-data-flow.state.json` when present. It is the compact current-state handoff.
 2. Read `./ptah-data-flow.progress.md` only when state is absent, the user asks for history, or the current decision needs older evidence.
-3. Inspect the explicit working area and identify the dataset, source of truth, current stage, remote target, and next bounded transform.
+3. Inspect the explicit working area and identify the dataset, source system,
+   counted scope, source of truth, current stage, remote target, and next bounded
+   transform.
 4. Read [references/stages.md](references/stages.md) only when stage routing or exit criteria are unclear.
 5. Read only the task-specific references below. Do not preload every reference.
 
 ## Reference routing
 
 - Publish contract or canonical shape: [references/contracts.md](references/contracts.md)
+- Directory/source-system discovery, stable identity, and coverage:
+  [references/source-system-and-coverage.md](references/source-system-and-coverage.md)
 - Taxonomy: [references/taxonomy.md](references/taxonomy.md)
 - Sparse-source enrichment: [references/enrichment.md](references/enrichment.md)
 - Event attendee or affiliation-assisted enrichment: [references/event-affiliation-enrichment.md](references/event-affiliation-enrichment.md)
@@ -54,15 +80,29 @@ Use this skill to onboard, repair, extend, publish, or maintain Ptah data.
 ## Stage routing
 
 - Stage 0: unknown state or ambiguous failure; identify source, boundary, and next transform.
-- Stage 1: recover one structured source from rough or heterogeneous input.
-- Stage 2: canonicalize, deduplicate, preserve identifiers, diagnose missingness, and assess taxonomy readiness. If grounding is sparse, enrich descriptions or evidence before Stage 3.
-- Stage 3: design and assign one defensible taxonomy after inspecting the grounded dataset. Treat an earlier name-only taxonomy as provisional and re-evaluate it after enrichment.
-- Stage 4: enrich and curate sparse or inconsistent fields with recorded evidence.
+- Stage 1: understand the source system and recover one structured source from
+  rough or heterogeneous input.
+- Stage 2: establish identity and scope; canonicalize, deduplicate, preserve
+  identifiers and relationships, and reconcile the counted population.
+- Stage 2b: recover the evidence needed for interpretation, including profiles,
+  tags, descriptions, first-party websites, provenance, and explicit coverage.
+- Stage 3: design and assign one defensible taxonomy from the grounded evidence
+  layer and review the full distribution plus boundary cases.
+- Stage 4: curate presentation fields and optional enrichment while preserving
+  evidence and source-derived content.
 - Stage 5: validate the contract, audit Airtable, publish, and verify the first or otherwise high-risk publication.
 - Stage 5b: activate and verify the gateway, deployment, and final hostname.
 - Stage 6: repair drift incrementally; route upstream when the defect is actually data quality.
 
-Before a new taxonomy design and before a first or full publication, run `scripts/audit_ptah_dataset.py` or an equivalent deterministic gate. Use `--require-gate taxonomy` before Stage 3 and `--require-gate publication --taxonomy taxonomy.json` before a full Stage 5. The publication gate requires the complete artifact shape and checks membership in that taxonomy. Description coverage is separate from evidence review; state freshness is informational. Do not rerun either whole-dataset gate for a routine narrow Stage 6 edit; validate only the changed ids, fields, and taxonomy pairs.
+Before a new taxonomy design and before a first or full publication, run
+`scripts/audit_ptah_dataset.py` or an equivalent deterministic gate. For a
+multi-surface or crawlable source, add `--source-manifest source-manifest.json`
+so the gate reconciles population, crawl, and identity coverage. Use
+`--require-gate taxonomy` before Stage 3 and `--require-gate publication
+--taxonomy taxonomy.json` before a full Stage 5. The publication gate requires
+the complete artifact shape and checks membership in that taxonomy. Coverage,
+evidence quality, and state freshness remain distinct signals. For a routine
+narrow Stage 6 edit, validate only the changed ids, fields, and taxonomy pairs.
 
 ## Model-backed work
 
@@ -95,6 +135,10 @@ Before a new taxonomy design and before a first or full publication, run `script
 - If multiple writers later become a real concern, fetch only the touched rows immediately before writing and compare only the target fields with their previous local values. Patch matches and report conflicts; do not add locks, global diffs, or full-table reconciliation.
 - Prefer one consolidated core-data patch, one attachment pass, one gateway refresh, and one final acceptance run when requirements are known together.
 - For a comprehensive publish or deployment, verify expected count, unique ids, taxonomy, profiles, publication state, attachments, gateway-local assets, and representative browser rendering as applicable.
+- Describe remote state precisely: `stored` means rows exist in Airtable;
+  `publish-enabled` means control fields admit them; `view-visible` means they
+  appear in the intended filtered view; `Ptah-visible` means the downstream
+  application returns and renders them.
 
 ## Token-efficient operation
 
@@ -115,6 +159,7 @@ Before a new taxonomy design and before a first or full publication, run `script
 ## Outputs
 
 - one canonical local dataset
+- one source manifest and coverage audit for multi-surface or crawlable sources
 - one publish artifact or successful narrow remote delta
 - one compact current-state file when establishing or changing a stage boundary
 - one stage verification artifact for first/full publish or high-risk operations

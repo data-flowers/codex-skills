@@ -54,11 +54,13 @@ Early preflight rule:
 - if Stage 4 curation or Exa-based enrichment is clearly inevitable, check for the needed key early in Stage 0 rather than discovering the blocker only after finishing deterministic local cleanup
 - if `EXA_API_KEY` is missing, ordinary web search is the default fallback unless the user explicitly wants Exa or the job clearly depends on Websets-scale enrichment
 
-## Stage 1: intake and source recovery
+## Stage 1: source-system discovery and recovery
 
 Goal:
 
-- convert rough input into one workable source dataset
+- understand how the source enumerates collections and entities
+- identify stable identifiers, direct entity surfaces, and source relationships
+- convert rough input into one workable structured source dataset
 
 Common entry cases:
 
@@ -76,11 +78,16 @@ Exit criteria:
 - one structured source dataset exists
 - row count is understood
 - exact duplicates from pagination or export problems are handled
+- the source access pattern and identifier strategy are recorded
+- multi-surface and crawlable sources have a source manifest as described in
+  [source-system and coverage](source-system-and-coverage.md)
 
-## Stage 2: canonicalization and diagnosis
+## Stage 2: identity, scope, and canonicalization
 
 Goal:
 
+- establish one counted in-scope population
+- anchor entities with source identity and preserve source relationships
 - convert messy or heterogeneous source data into one canonical working dataset
 
 Exit criteria:
@@ -88,19 +95,35 @@ Exit criteria:
 - one working dataset exists
 - source identifiers are preserved
 - stable ids are opaque text, not inferred numeric values
+- source-id uniqueness and profile-URL coverage match declared availability
+- discovered, in-scope, excluded, attempted, recovered, and failed counts
+  reconcile through the source manifest when the source has multiple surfaces
 - entity kind is understood
 - obvious missingness and schema problems are known
 - placeholder, individual, and non-organization candidates are listed separately
 - taxonomy readiness is measured from grounded descriptions or equivalent evidence
 
-Taxonomy-readiness rule:
+## Stage 2b: grounding and evidence recovery
 
-- do not force a final taxonomy from names alone when descriptions or affiliation
-  evidence can still be recovered
-- when grounding coverage is below the project's declared threshold, perform the
-  source-enrichment portion of Stage 4 before entering Stage 3
-- record the threshold and any explicit override; do not silently treat a sparse
-  provisional taxonomy as final
+Goal:
+
+- assemble the evidence layer needed for taxonomy and later curation
+
+Common evidence:
+
+- official source profiles and structured source fields
+- source product, service, organization, or affiliation tags
+- first-party website content
+- supported fallback evidence with provenance
+
+Exit criteria:
+
+- evidence basis and retrieval status are recorded per entity or in a sidecar
+- profile and field coverage are reported against the counted in-scope population
+- generated descriptions remain distinguishable from original source text
+- the grounding threshold for taxonomy is met, or the reviewed sparse-source
+  exception and its limitations are recorded
+- low-evidence rows form an explicit review queue
 
 ## Stage 3: taxonomy design and assignment
 
@@ -115,18 +138,18 @@ Exit criteria:
 - initial, final, and original source classification layers are distinct when reclassification is requested
 - original source labels are preserved mechanically across all rows
 - label distribution has been reviewed and, if needed, revised
-- the taxonomy was assigned from sufficiently grounded rows, or a documented
+- evidence basis and confidence are available for each assignment
+- the taxonomy was assigned from the grounded evidence layer, or a documented
   sparse-source exception was reviewed
 
-## Stage 4: curation and enrichment
+## Stage 4: presentation curation and optional enrichment
 
 Goal:
 
-- improve display quality and AI usefulness without losing grounding
+- improve display quality and AI usefulness while preserving the evidence layer
 
 Common work:
 
-- enrich missing core source material such as website, summary facts, or other grounding fields
 - rewrite descriptions
 - rewrite AI context
 - enrich optional fields
@@ -135,7 +158,7 @@ Common work:
 Important:
 
 - distinguish “field present” from “field truly curated”
-- if rows are too sparse to support good rewrite quality, enrich first and curate second
+- use Stage 2b when rows need more grounding before rewrite or classification
 - before model-backed enrichment or rewrite, check whether the required API key or credential is already available in the environment or current run context
 - if there is an explicit rewrite policy, prompt, bundled runner, or model-backed enrichment path for `Description` or `AI Context`, use that path
 - deterministic source-derived fact strings belong in working notes, helper columns, or draft diagnostics; they are not a substitute for final curated `AI Context`
@@ -254,7 +277,7 @@ Priority rule:
 
 ## Second-look rule
 
-After substantive Stage 2, Stage 3, Stage 4, Stage 5, and Stage 5b work, perform a
+After substantive Stage 2, Stage 2b, Stage 3, Stage 4, Stage 5, and Stage 5b work, perform a
 second look before declaring success. Do not apply this whole-dataset review to
 routine Stage 6 field edits under an unchanged schema and taxonomy.
 

@@ -44,6 +44,18 @@ verified profile text, or equivalent attributable evidence—not names alone.
 - When a provisional name-only taxonomy already exists, re-evaluate low-confidence
   and boundary rows after descriptions materially improve.
 
+Keep a compact assignment ledger in the canonical dataset or a sidecar:
+
+```text
+entity id -> evidence basis -> category -> subcategory -> confidence
+```
+
+Useful evidence-basis labels include `profile+tags`, `tags-only`,
+`first-party-website`, `supported-fallback`, and `name-only`. Confidence follows
+the quality and agreement of the evidence. Name-only and identity-only
+assignments remain review candidates; high confidence represents grounded
+functional evidence.
+
 ## Evidence hierarchy and conflict resolution
 
 Classify the axis the taxonomy claims to represent. When `Category` means organizational role or entity type, use this precedence:
@@ -146,6 +158,9 @@ After assigning or proposing labels, review:
 - category/subcategory complementarity: the subcategory should add a useful distinction inside the category, not restate it
 - category shape: each category should usually have 2-9 subcategories
 - bucket floor: avoid final categories or subcategories with 5 or fewer rows unless the dataset is very small or the user explicitly wants rare classes preserved
+- evidence distribution: review counts by evidence basis and confidence, then
+  inspect every high-confidence assignment whose evidence is weaker than the
+  surrounding cohort
 
 Revise once if needed.
 

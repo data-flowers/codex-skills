@@ -16,6 +16,7 @@ questions without replaying project history.
   "dataset": "example-map",
   "stage": "stage-6-maintenance",
   "status": "published",
+  "publicationState": "Ptah-visible",
   "sourceOfTruth": "./data/entities.canonical.json",
   "publishArtifact": "./data/entities.ptah.csv",
   "counts": {
@@ -34,6 +35,8 @@ questions without replaying project history.
     "gatewayOrigin": "https://example-map.data.flowers"
   },
   "artifacts": {
+    "sourceManifest": "./data/source-manifest.json",
+    "latestCoverage": "./data/grounding-audit.json",
     "latestVerification": "./data/verification.json",
     "latestManifest": "./data/manifest.json"
   },
@@ -58,6 +61,9 @@ Rules:
 - Keep only the latest authoritative artifact for each concern.
 - Use stable ids, hashes, counts, and status enums rather than prose when the
   state describes a full-dataset or publication milestone.
+- For a counted source system, retain the source manifest and latest coverage
+  report paths. Use `stored`, `publish-enabled`, `view-visible`, or
+  `Ptah-visible` for the furthest verified publication milestone.
 - Update atomically after a stage succeeds. Do not advance state before
   verification passes.
 - Derive counts and hashes from the current artifacts; do not carry them forward

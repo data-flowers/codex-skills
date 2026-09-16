@@ -58,6 +58,30 @@ Examples:
 
 The exact names can vary. What matters is that the agent treats one of them as the current source of truth and records that in current state.
 
+## Legible artifact layout
+
+Organize substantial runs so a person can identify each artifact's role at a
+glance. A useful default is:
+
+```text
+source/       recovered source records and raw provenance
+canonical/    the active canonical dataset and taxonomy
+reports/      coverage, grounding, validation, and acceptance reports
+publish/      derived Ptah and Airtable payloads
+assets/       decoded and reviewed binary assets
+tmp/          transient captures, transfer encodings, and retry fragments
+```
+
+Keep the exact structure proportional to the project. Small runs may use fewer
+directories while retaining the same conceptual separation.
+
+Prefer readable CSV or JSON for records and provenance, and native binary files
+for images or documents. Treat Base64 and compressed transfer parts as temporary
+transport representations: decode them into their durable form during intake and
+keep any short-lived transfer artifacts under temporary storage. Record the one
+active canonical dataset and the latest authoritative report paths in current
+state.
+
 ### Bundled boundary tools
 
 - [`scripts/ptah_contract.json`](../scripts/ptah_contract.json)

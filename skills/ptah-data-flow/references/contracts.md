@@ -31,6 +31,13 @@ the identifier into a number.
 
 The canonical dataset may also carry dynamic enrichment or custom columns, but these fields are the stable spine.
 
+For multi-surface or crawlable sources, useful canonical helper fields include
+`sourceId`, `sourceProfileUrl`, `scopeMemberships`, `evidenceBasis`, and
+`taxonomyConfidence`. Keep raw source values and detailed provenance in helper
+fields or a sidecar rather than compressing them into the 12-field publish shape.
+A source manifest records the counted population and declared availability of
+stable identifiers and profile URLs.
+
 ## Downstream Ptah / Airtable fields
 
 The current publish target expects these fields in this order:
@@ -96,6 +103,12 @@ remote schema auditors consume the same contract.
 complete field shape, including optional fields whose values may be blank.
 `--kind delta` checks only the key and provided changed fields and does not claim
 whole-dataset readiness. Supply category and subcategory together for pair checks.
+
+For directories and other counted source systems, pass
+`--source-manifest source-manifest.json`. The audit then reconciles discovered,
+in-scope, excluded, attempted, recovered, and failed counts; checks canonical row
+count; and verifies stable source-id uniqueness and profile-URL coverage when the
+manifest declares those values available.
 
 A taxonomy file has this shape:
 
