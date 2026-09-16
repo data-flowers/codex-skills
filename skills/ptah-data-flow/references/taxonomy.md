@@ -43,6 +43,12 @@ verified profile text, or equivalent attributable evidence—not names alone.
   evidence limitations.
 - When a provisional name-only taxonomy already exists, re-evaluate low-confidence
   and boundary rows after descriptions materially improve.
+- Treat any row with substantive grounded evidence but no supported assignment as
+  an unresolved grounded row, not as permission to preserve its old taxonomy.
+  Emit these rows into a mandatory review queue with their full evidence packet,
+  and require the unresolved grounded count to be zero before applying a complete
+  or evidence-driven taxonomy refresh. Evidence-free rows may remain explicit
+  low-confidence fallbacks when the dataset contract permits them.
 
 Keep a compact assignment ledger in the canonical dataset or a sidecar:
 
@@ -75,6 +81,11 @@ Do not let a lower-ranked signal override explicit functional evidence. In parti
 Preserve decision-bearing evidence through normalization. A fluent one-sentence summary can erase terms such as `membership network`, `cluster`, `working group`, `research institute`, or `laboratory` while emphasizing generic words such as `nonprofit`, `policy`, or `government`. For boundary rows, classify from the source evidence packet or include a compact `identity`, `operating model`, and `source type` tuple alongside the normalized description.
 
 Treat final confirmation as evidence review, not source-type ratification. Randomized candidates reduce positional bias but do not fix a prompt that declares the registration type authoritative. When deterministic guards exist, make them symmetric: explicit functional evidence must be able to require or escalate a correction, not merely permit a model-selected change. Send unresolved status-versus-function conflicts to review instead of silently retaining the current value.
+
+For deterministic classifiers, distinguish `no evidence` from `evidence not
+understood`. The former may use a documented low-confidence fallback; the latter
+must enter review. Persist a machine-readable unresolved-grounded count in the
+preview or audit artifact, and fail closed when that count is nonzero.
 
 ## Required sequence
 
