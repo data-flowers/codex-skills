@@ -134,6 +134,7 @@ narrow Stage 6 edit, validate only the changed ids, fields, and taxonomy pairs.
 - Use comprehensive verification only for first/full publish, large imports or deletes, schema mutation, attachment replacement, publication/view-membership changes, deployment, ambiguous or stale remote state, surprising API behavior, explicit user requests, or another concrete high-risk condition.
 - If multiple writers later become a real concern, fetch only the touched rows immediately before writing and compare only the target fields with their previous local values. Patch matches and report conflicts; do not add locks, global diffs, or full-table reconciliation.
 - Prefer one consolidated core-data patch, one attachment pass, one gateway refresh, and one final acceptance run when requirements are known together.
+- When gateway publication is requested for a property-only change, prefer the deployed guarded property mode and an existing operator command; see [routine maintenance](references/airtable-maintenance.md). Local implementation is not proof of live support.
 - For a comprehensive publish or deployment, verify expected count, unique ids, taxonomy, profiles, publication state, attachments, gateway-local assets, and representative browser rendering as applicable.
 - Describe remote state precisely: `stored` means rows exist in Airtable;
   `publish-enabled` means control fields admit them; `view-visible` means they
@@ -145,6 +146,7 @@ narrow Stage 6 edit, validate only the changed ids, fields, and taxonomy pairs.
 - Use the bundled entrypoints and keep detailed artifacts on disk; return compact summaries under 2 KB. Add an orchestrator only when the actual dataset needs one.
 - Keep per-row and per-batch diagnostics in report files. Print milestones every 25-50 records and always print failures immediately.
 - Avoid model turns used only to poll a long process. Wait as long as the tool permits and summarize the terminal result once.
+- For requested public verification of a narrow property edit, inspect the selected property artifacts and affected detail chunks, not every chunk. Report the inspected scope; reserve full acceptance for high-risk boundaries.
 - Keep `ptah-data-flow.state.json` under 4 KB. Archive chronology in the progress log without loading it by default.
 - Reconcile state at stage milestones, first/full publish, and high-risk operations. Do not rewrite state, counts, or hashes for every routine field edit unless they are the project source of truth for that field.
 - Retain final contact sheets and audit reports; keep per-tile previews and transient captures in temporary storage unless evidence retention is required.

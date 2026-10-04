@@ -112,6 +112,67 @@ When useful, validate a delta with `audit_ptah_dataset.py delta.csv --kind delta
 For taxonomy edits, include the category/subcategory pair and `--taxonomy` so the
 changed pair can be checked. Full-dataset gates do not apply to this path.
 
+## Requested gateway publication
+
+A successful narrow Airtable PATCH completes a storage-only request. Refresh the
+gateway only when publication is requested or required by the requested outcome;
+do not attach this sequence to every routine edit.
+
+For a property value, domain, alias, or consumer-gate change on an established
+map, prefer Admin Properties **Save & publish** or the existing authenticated
+operator's property mode when the deployed gateway supports it. Do not infer
+live support from a local script or undeployed application change, and do not
+deploy application code as a side effect of data maintenance.
+
+The guarded mode still fetches the current filtered source and schema. It can
+reuse unchanged logos and content-addressed public artifacts only when source
+membership, core public/private content, field mapping, attachment identities,
+and the committed generation match. A missing snapshot or non-property change
+must fall back to the normal full refresh, not be ignored to force a fast path.
+Relational or switchable taxonomies may require full refresh. Preserve the
+prior live generation while the replacement stages; never invalidate it first.
+
+Where the gateway repository supplies `scripts/datamap-refresh.mjs`, use it
+instead of browser/model turns for each continuation:
+
+```bash
+node <gateway-repo>/scripts/datamap-refresh.mjs \
+  --origin <recorded-HTTPS-origin> --connection <recorded-connection-id>
+```
+
+Provide `ADMIN_API_TOKEN` through the current environment or approved credential
+source, never command arguments. The operator defaults to property mode;
+`--catalog <private-catalog.json>` optionally saves only the supplied catalog
+with the current revision, while omitting it preserves the saved mappings.
+It does not patch Airtable. It advances signed full-refresh continuations with
+server pacing and returns compact counts, mode, and elapsed time. After an HTTP
+failure or timeout, inspect status before retrying an uncertain publication.
+On gateways without this supported command, use their existing refresh workflow
+and keep polling deterministic and bounded.
+
+## Focused public verification
+
+When public verification is requested for a routine property edit, reuse the
+recorded map boundary and prepared data. Read bootstrap/metadata, the selected
+property artifact(s), and only the detail chunks containing changed IDs. Check
+generation agreement, catalog/domain, membership, artifact hashes, selected
+property values, affected details, and private-field exclusion in inspected
+payloads. A shared detail chunk can include unchanged neighbors; inspect that
+chunk without expanding to all unrelated chunks.
+
+One property and one affected chunk typically require four requests, not an
+entire detail export. Keep full artifacts and diagnostics on disk, send only a
+compact summary to the model, and identify exactly what the check covered. A
+delta privacy check is not a full public privacy audit. Keep its report separate
+from the full-acceptance baseline. Do not add this verification to storage-only
+PATCH requests that already succeeded.
+
+For performance diagnosis, separate source-fetch, asset, generation-build,
+staging, commit, and total elapsed times where instrumentation exists. Reused
+logos do not prove that finalization is complete. Honor server pacing rather
+than raising concurrency indiscriminately; do not promise a production speedup
+until the deployed path is measured.
+
 ## Escalating verification
 
 Use comprehensive verification for first/full publication, large imports or

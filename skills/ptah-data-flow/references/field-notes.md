@@ -17,6 +17,7 @@ the linked reference; do not treat historical examples as additional stages.
 | A host platform's login/metadata text was mistaken for an organization description | [Description acceptance](event-affiliation-enrichment.md) |
 | CSV headers counted as records; imported timestamps were not native Last modified time | [Publication boundary and native timestamp provisioning](airtable-boundary.md) |
 | General imports overwrote attachments; reclassification replaced Airtable record identities | [Narrow field omission and known-record updates](airtable-maintenance.md) |
+| A one-property correction triggered image-batch continuations and a whole-detail audit | [Guarded property publication and focused public verification](airtable-maintenance.md#requested-gateway-publication) |
 | An empty filtered view looked like a successful table upload | [Publication-control tuples](airtable-boundary.md) |
 | Rewrites throttled, caches collided, and retries disappeared from cost summaries | [Shared execution, pacing, and usage](rewrite-runners.md) |
 | Opaque and transparent logos failed on one background; SVG/ICO sources needed normalization | [Attachment identity, conversion, and contrast](attachment-images.md) |
