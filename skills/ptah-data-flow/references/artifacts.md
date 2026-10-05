@@ -87,6 +87,7 @@ state.
 - [`scripts/ptah_contract.json`](../scripts/ptah_contract.json)
 - [`scripts/check_skill.py`](../scripts/check_skill.py)
 - [`scripts/audit_ptah_dataset.py`](../scripts/audit_ptah_dataset.py)
+- [`scripts/fetch_techweek.mjs`](../scripts/fetch_techweek.mjs): official Tech Week source-only refresh; see [MCP intake](techweek-mcp.md)
 - [`scripts/inspect_airtable_table.mjs`](../scripts/inspect_airtable_table.mjs)
 - [`scripts/upsert_airtable_csv.mjs`](../scripts/upsert_airtable_csv.mjs)
 - [`scripts/optimize_airtable_attachments.py`](../scripts/optimize_airtable_attachments.py)

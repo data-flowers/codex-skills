@@ -61,6 +61,7 @@ Use this skill to onboard, repair, extend, publish, or maintain Ptah data.
 - Publish contract or canonical shape: [references/contracts.md](references/contracts.md)
 - Directory/source-system discovery, stable identity, and coverage:
   [references/source-system-and-coverage.md](references/source-system-and-coverage.md)
+- Official Tech Week calendar intake or refresh through MCP: [references/techweek-mcp.md](references/techweek-mcp.md)
 - Taxonomy: [references/taxonomy.md](references/taxonomy.md)
 - Sparse-source enrichment: [references/enrichment.md](references/enrichment.md)
 - Event attendee or affiliation-assisted enrichment: [references/event-affiliation-enrichment.md](references/event-affiliation-enrichment.md)

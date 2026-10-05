@@ -30,7 +30,8 @@ for path in root.rglob('*.md'):
         if not target.is_file():
             errors.append(f'{path.relative_to(root)}: missing link {link}')
 for command in ([sys.executable, '-B', '-m', 'unittest', 'discover', '-s', str(root/'scripts/tests')],
-                ['node', '--test', str(root/'scripts/tests/airtable.test.mjs')]):
+                ['node', '--test', str(root/'scripts/tests/airtable.test.mjs'),
+                 str(root/'scripts/tests/techweek.test.mjs')]):
     result = subprocess.run(command, cwd=root, capture_output=True, text=True,
                             env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'})
     if result.returncode:
