@@ -14,6 +14,13 @@ and [gemini_rewrite_common.py](../scripts/gemini_rewrite_common.py):
 | [rewrite_ai_context_gemini.py](../scripts/rewrite_ai_context_gemini.py) | Validated Markdown with six headings | One row |
 | [rewrite_ai_context_gemini_batched.py](../scripts/rewrite_ai_context_gemini_batched.py) | Same AI Context policy, one result per exact id | Eight rows |
 
+All three runners default to [Gemini 3.8 Flash](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash)
+(`gemini-3.8-flash`). Override it with `--model` or the JSON config's `model` key.
+To migrate a config that pins an older model, remove that key or set it to
+`gemini-3.8-flash`. The client requests structured JSON and leaves thinking at
+the service default (`medium`); it does not send sampling parameters or a
+thinking budget. See [Google's migration guide](https://ai.google.dev/gemini-api/docs/latest-model).
+
 Run the installed entrypoint directly. Keep dataset-specific paths, field
 selection, model, and quota settings in a JSON config rather than copying the
 runner. All command-line options can be set with underscore keys, except
@@ -101,6 +108,10 @@ to the detailed journal; neither includes credentials.
 
 Cache paths hash the exact id. Cache validity additionally depends on source
 fields, model, and prompt policy. Corrupt or mismatched entries are regenerated.
+Changing the model regenerates selected rows, so the first Gemini 3.8 Flash run
+uses fresh API calls even when an older model's cache exists. Subsequent runs
+reuse the new cache. `--missing-only` still skips populated target fields;
+omit it when existing text must be regenerated with the new model.
 Older slug-based caches are not trusted by the new runner; budget for one
 regeneration pass after upgrading. Caches and outputs remain dataset-scoped.
 

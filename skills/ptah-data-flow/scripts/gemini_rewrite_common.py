@@ -15,7 +15,7 @@ from typing import Any
 from urllib import error, request
 
 
-DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"
+DEFAULT_MODEL = "gemini-3.8-flash"
 
 
 class GeminiGenerationError(RuntimeError):

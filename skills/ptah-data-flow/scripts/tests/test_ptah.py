@@ -111,6 +111,25 @@ class RewriteTests(OfflineTest):
         _, call, _, _ = self.run_rewrite(descriptions, rows=[{'Id': '001', 'Name': 'Renamed', 'Website': 'https://example.test'}])
         self.assertEqual(call.call_count, 1)
 
+    def test_all_runners_migrate_old_model_cache_to_flash_38(self):
+        cases = ((descriptions, {'description': DESCRIPTION}),
+                 (single, {'markdown': BODY}),
+                 (batch, {'results': [{'id': '001', 'markdown': BODY}]}))
+        for module, payload in cases:
+            with self.subTest(module=module.__name__):
+                self.run_rewrite(module, payload=payload,
+                                 extra=['--model', 'gemini-3.1-flash-lite-preview', '--force'])
+                _, call, report, _ = self.run_rewrite(module, payload=payload)
+                self.assertEqual(call.call_count, 1)
+                self.assertEqual(call.call_args.kwargs['model'], 'gemini-3.8-flash')
+                self.assertEqual(report['model'], 'gemini-3.8-flash')
+                self.assertEqual(report['cache_hits'], 0)
+                cached = common.load_cached_result(self.root/'cache', '001')
+                self.assertEqual(cached['model'], 'gemini-3.8-flash')
+                _, call, report, _ = self.run_rewrite(module, payload=payload)
+                call.assert_not_called()
+                self.assertEqual(report['cache_hits'], 1)
+
     def test_all_runners_require_explicit_columns(self):
         for module in (single, batch, descriptions):
             with self.subTest(module=module.__name__), patch.object(common, 'call_gemini_json') as call:
@@ -185,13 +204,41 @@ class RewriteTests(OfflineTest):
                 common.call_gemini_json(api_key='FAKE', model='fake', system_instruction='', prompt='')
         self.assertEqual(error.exception.usage, {'promptTokenCount': 12})
 
+    def test_flash_38_request_and_response_contract(self):
+        usage = {'promptTokenCount': 12, 'candidatesTokenCount': 8, 'thoughtsTokenCount': 5}
+        response = {'usageMetadata': usage, 'modelVersion': 'gemini-3.8-flash', 'responseId': 'test-response',
+                    'candidates': [{'content': {'parts': [{'text': json.dumps({'description': DESCRIPTION})}]}}]}
+        fake = SimpleNamespace(read=lambda: json.dumps(response).encode())
+        with patch.object(common.request, 'urlopen', return_value=contextlib.nullcontext(fake)) as call:
+            result = common.call_gemini_json(api_key='FAKE', model=common.DEFAULT_MODEL,
+                                            system_instruction='Return JSON.', prompt='Public context.', timeout_seconds=30)
+        req = call.call_args.args[0]
+        self.assertEqual(req.full_url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent')
+        self.assertEqual(req.method, 'POST')
+        self.assertEqual(req.get_header('X-goog-api-key'), 'FAKE')
+        self.assertEqual(call.call_args.kwargs['timeout'], 30)
+        self.assertEqual(json.loads(req.data), {
+            'system_instruction': {'parts': [{'text': 'Return JSON.'}]},
+            'contents': [{'parts': [{'text': 'Public context.'}]}],
+            'generationConfig': {'responseMimeType': 'application/json'},
+        })
+        self.assertEqual(result['description'], DESCRIPTION)
+        self.assertEqual(result['_usage_metadata'], usage)
+        self.assertEqual(result['_model_version'], 'gemini-3.8-flash')
+        self.assertEqual(result['_response_id'], 'test-response')
+
     def test_config_and_cli_override(self):
         source = self.csv([{'Id': 'a', 'Name': 'Example'}])
         config = self.root/'config.json'
         config.write_text(json.dumps({'input_csv': source.name, 'output_csv': 'configured.csv', 'cache_dir': 'configured-cache',
-                                      'context_columns': 'Name', 'request_delay_seconds': 0}))
-        with patch.object(common, 'require_api_key', return_value='FAKE'), patch.object(common, 'call_gemini_json', return_value={'description': DESCRIPTION}), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            descriptions.main(['--config', str(config), '--output-csv', str(self.root/'overridden.csv')])
+                                      'context_columns': 'Name', 'request_delay_seconds': 0, 'model': 'configured-model'}))
+        for cli_model in (None, 'cli-model'):
+            with self.subTest(cli_model=cli_model), patch.object(common, 'require_api_key', return_value='FAKE'), patch.object(common, 'call_gemini_json', return_value={'description': DESCRIPTION}) as call, contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                args = ['--config', str(config), '--output-csv', str(self.root/'overridden.csv')]
+                if cli_model:
+                    args.extend(['--model', cli_model])
+                descriptions.main(args)
+                self.assertEqual(call.call_args.kwargs['model'], cli_model or 'configured-model')
         self.assertTrue((self.root/'overridden.csv').exists())
         self.assertFalse((self.root/'configured.csv').exists())
 
